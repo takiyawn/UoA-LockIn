@@ -1,18 +1,37 @@
-import MapView, { Marker, Callout } from 'react-native-maps';
 import { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Text, View, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Button, ScrollView } from 'react-native';
+import MapView, { Marker, Callout } from 'react-native-maps';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-function SpaceCard({ space, onPress }) {
+async function getFavourites() {
+  const json = await AsyncStorage.getItem('favourites');
+  return json ? JSON.parse(json) : [];
+}
+
+async function toggleFavourite(space) {
+  const favs = await getFavourites();
+  const exists = favs.find((f) => f.id === space.id);
+  const updated = exists ? favs.filter((f) => f.id !== space.id) : [...favs, space];
+  await AsyncStorage.setItem('favourites', JSON.stringify(updated));
+  return !exists;
+}
+
+function SpaceCard({ space, onPress, isFav, onToggleFav }) {
   return (
     <TouchableOpacity style={styles.card} onPress={onPress}>
-      <Text style={styles.cardTitle}>{space.name}</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        <Text style={[styles.cardTitle, { flex: 1 }]}>{space.name}</Text>
+        <TouchableOpacity onPress={onToggleFav}>
+          <Text style={{ fontSize: 20 }}>{isFav ? '❤️' : '🤍'}</Text>
+        </TouchableOpacity>
+      </View>
       <Text style={styles.cardSub}>{space.building}</Text>
       <View style={styles.tags}>
         <Text style={styles.tag}>{space.noise}</Text>
@@ -26,16 +45,26 @@ function SpaceCard({ space, onPress }) {
 function SpacesListScreen({ navigation }) {
   const [spaces, setSpaces] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [favourites, setFavourites] = useState([]);
 
   useEffect(() => {
-    async function fetchSpaces() {
+    async function load() {
       const { data, error } = await supabase.from('spaces').select('*');
       if (error) console.error(error);
       else setSpaces(data);
+      const favs = await getFavourites();
+      setFavourites(favs.map((f) => f.id));
       setLoading(false);
     }
-    fetchSpaces();
+    load();
   }, []);
+
+  async function handleToggleFav(space) {
+    const isNowFav = await toggleFavourite(space);
+    setFavourites((prev) =>
+      isNowFav ? [...prev, space.id] : prev.filter((id) => id !== space.id)
+    );
+  }
 
   if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
 
@@ -44,7 +73,12 @@ function SpacesListScreen({ navigation }) {
       data={spaces}
       keyExtractor={(item) => item.id}
       renderItem={({ item }) => (
-        <SpaceCard space={item} onPress={() => navigation.navigate('SpaceDetail', { space: item })} />
+        <SpaceCard
+          space={item}
+          onPress={() => navigation.navigate('SpaceDetail', { space: item })}
+          isFav={favourites.includes(item.id)}
+          onToggleFav={() => handleToggleFav(item)}
+        />
       )}
       contentContainerStyle={styles.list}
     />
@@ -58,9 +92,11 @@ function SpaceDetailScreen({ route }) {
   const [rating, setRating] = useState('5');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [isFav, setIsFav] = useState(false);
 
   useEffect(() => {
     fetchReviews();
+    getFavourites().then((favs) => setIsFav(!!favs.find((f) => f.id === space.id)));
   }, []);
 
   async function fetchReviews() {
@@ -91,9 +127,19 @@ function SpaceDetailScreen({ route }) {
     setSubmitting(false);
   }
 
+  async function handleToggleFav() {
+    const isNowFav = await toggleFavourite(space);
+    setIsFav(isNowFav);
+  }
+
   return (
     <ScrollView style={styles.detail}>
-      <Text style={styles.detailTitle}>{space.name}</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text style={[styles.detailTitle, { flex: 1 }]}>{space.name}</Text>
+        <TouchableOpacity onPress={handleToggleFav}>
+          <Text style={{ fontSize: 28 }}>{isFav ? '❤️' : '🤍'}</Text>
+        </TouchableOpacity>
+      </View>
       <Text style={styles.cardSub}>{space.building}</Text>
       <View style={styles.tags}>
         <Text style={styles.tag}>{space.noise}</Text>
@@ -185,8 +231,47 @@ function MapScreen({ navigation }) {
   );
 }
 
-function FavouritesScreen() {
-  return <View style={styles.center}><Text>Favourites coming soon</Text></View>;
+function FavouritesScreen({ navigation }) {
+  const [favourites, setFavourites] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', loadFavourites);
+    return unsubscribe;
+  }, [navigation]);
+
+  async function loadFavourites() {
+    const favs = await getFavourites();
+    setFavourites(favs);
+    setLoading(false);
+  }
+
+  async function handleToggleFav(space) {
+    await toggleFavourite(space);
+    loadFavourites();
+  }
+
+  if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
+
+  return favourites.length === 0 ? (
+    <View style={styles.center}>
+      <Text style={styles.cardSub}>No favourites yet. Tap ❤️ on any space.</Text>
+    </View>
+  ) : (
+    <FlatList
+      data={favourites}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item }) => (
+        <SpaceCard
+          space={item}
+          onPress={() => navigation.navigate('Spaces', { screen: 'SpaceDetail', params: { space: item } })}
+          isFav={true}
+          onToggleFav={() => handleToggleFav(item)}
+        />
+      )}
+      contentContainerStyle={styles.list}
+    />
+  );
 }
 
 export default function App() {
