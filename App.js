@@ -1,20 +1,11 @@
+import { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, View, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import { Text, View, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { supabase } from './supabase';
 
 const Tab = createBottomTabNavigator();
 
-const STUDY_SPACES = [
-  { id: '1', name: 'Kate Edger Information Commons', building: 'City Campus', noise: 'Quiet', wifi: true, power: true, floors: '1-4' },
-  { id: '2', name: 'General Library', building: 'City Campus', noise: 'Silent', wifi: true, power: true, floors: '1-5' },
-  { id: '3', name: 'Science Library', building: 'Science Campus', noise: 'Quiet', wifi: true, power: true, floors: '1-2' },
-  { id: '4', name: 'Engineering Library', building: 'Engineering', noise: 'Quiet', wifi: true, power: true, floors: '1' },
-  { id: '5', name: 'Business School Level 3', building: 'Owen G Glenn', noise: 'Moderate', wifi: true, power: false, floors: '3' },
-  { id: '6', name: 'ClockTower Building', building: 'City Campus', noise: 'Quiet', wifi: true, power: false, floors: '1-3' },
-  { id: '7', name: 'Philson Library', building: 'Grafton Campus', noise: 'Silent', wifi: true, power: true, floors: '1-2' },
-];
-
-//display a single study space as a card
 function SpaceCard({ space }) {
   return (
     <TouchableOpacity style={styles.card}>
@@ -29,11 +20,25 @@ function SpaceCard({ space }) {
   );
 }
 
-
 function SpacesScreen() {
+  const [spaces, setSpaces] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchSpaces() {
+      const { data, error } = await supabase.from('spaces').select('*');
+      if (error) console.error(error);
+      else setSpaces(data);
+      setLoading(false);
+    }
+    fetchSpaces();
+  }, []);
+
+  if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
+
   return (
     <FlatList
-      data={STUDY_SPACES}
+      data={spaces}
       keyExtractor={(item) => item.id}
       renderItem={({ item }) => <SpaceCard space={item} />}
       contentContainerStyle={styles.list}
