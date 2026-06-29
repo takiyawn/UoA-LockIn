@@ -1,3 +1,4 @@
+import MapView, { Marker, Callout } from 'react-native-maps';
 import { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -143,8 +144,45 @@ function SpacesScreen() {
   );
 }
 
-function MapScreen() {
-  return <View style={styles.center}><Text>Map coming soon</Text></View>;
+function MapScreen({ navigation }) {
+  const [spaces, setSpaces] = useState([]);
+
+  useEffect(() => {
+    async function fetchSpaces() {
+      const { data, error } = await supabase.from('spaces').select('*');
+      if (error) console.error(error);
+      else setSpaces(data);
+    }
+    fetchSpaces();
+  }, []);
+
+  return (
+    <MapView
+      style={{ flex: 1 }}
+      initialRegion={{
+        latitude: -36.8523,
+        longitude: 174.7691,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }}
+    >
+      {spaces.map((space) => (
+        <Marker
+          key={space.id}
+          coordinate={{ latitude: space.lat, longitude: space.lng }}
+          title={space.name}
+        >
+          <Callout onPress={() => navigation.navigate('Spaces', { screen: 'SpaceDetail', params: { space } })}>
+            <View style={{ padding: 8, maxWidth: 200 }}>
+              <Text style={{ fontWeight: '600' }}>{space.name}</Text>
+              <Text style={{ color: '#666', fontSize: 12 }}>{space.building}</Text>
+              <Text style={{ color: '#007AFF', fontSize: 12, marginTop: 4 }}>Tap to view →</Text>
+            </View>
+          </Callout>
+        </Marker>
+      ))}
+    </MapView>
+  );
 }
 
 function FavouritesScreen() {
