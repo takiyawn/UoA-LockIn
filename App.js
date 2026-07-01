@@ -6,6 +6,8 @@ import { Text, View, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, 
 import MapView, { Marker, Callout } from 'react-native-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
+import { AuthProvider, useAuth } from './AuthContext';
+import LoginScreen from './LoginScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -113,10 +115,12 @@ function SpaceDetailScreen({ route }) {
   async function submitReview() {
     if (!comment.trim()) return;
     setSubmitting(true);
+    const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from('reviews').insert({
       space_id: space.id,
       rating: parseInt(rating),
       comment: comment.trim(),
+      user_id: user.id,
     });
     if (error) console.error(error);
     else {
@@ -274,15 +278,34 @@ function FavouritesScreen({ navigation }) {
   );
 }
 
-export default function App() {
+function MainApp() {
+  const { session, loading, signOut } = useAuth();
+
+  if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
+  if (!session) return <LoginScreen />;
+
   return (
     <NavigationContainer>
       <Tab.Navigator>
         <Tab.Screen name="Map" component={MapScreen} />
         <Tab.Screen name="Spaces" component={SpacesScreen} options={{ headerShown: false }} />
         <Tab.Screen name="Favourites" component={FavouritesScreen} />
+        <Tab.Screen name="Account" children={() => (
+          <View style={styles.center}>
+            <Text style={{ marginBottom: 16 }}>{session.user.email}</Text>
+            <Button title="Sign out" onPress={signOut} />
+          </View>
+        )} />
       </Tab.Navigator>
     </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
   );
 }
 

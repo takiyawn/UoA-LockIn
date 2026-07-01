@@ -2,6 +2,7 @@
   "expo": {
     "name": "uoa-study-spaces",
     "slug": "uoa-study-spaces",
+    "scheme": "uoastudyspaces",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -27,10 +28,14 @@
         "googleMaps": {
           "apiKey": "REDACTED"
         }
-      }
+      },
+      "package": "com.takiyawn.uoastudyspaces"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-web-browser"
+    ]
   }
 }
