@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 import { AuthProvider, useAuth } from './AuthContext';
 import LoginScreen from './LoginScreen';
+import TimerScreen from './TimerScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -288,6 +289,7 @@ function MainApp() {
     <NavigationContainer>
       <Tab.Navigator>
         <Tab.Screen name="Map" component={MapScreen} />
+        <Tab.Screen name="Timer" component={TimerScreen} />
         <Tab.Screen name="Spaces" component={SpacesScreen} options={{ headerShown: false }} />
         <Tab.Screen name="Favourites" component={FavouritesScreen} />
         <Tab.Screen name="Account" children={() => (

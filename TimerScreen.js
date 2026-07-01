@@ -1,0 +1,285 @@
+import { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView } from 'react-native';
+import { supabase } from './supabase';
+import { useAuth } from './AuthContext';
+
+const PERIODS = ['Weekly', 'Monthly', 'Yearly', 'All Time'];
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const s = (seconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function TimerTab() {
+  const { session } = useAuth();
+  const [workMinutes, setWorkMinutes] = useState('25');
+  const [breakMinutes, setBreakMinutes] = useState('5');
+  const [secondsLeft, setSecondsLeft] = useState(25 * 60);
+  const [running, setRunning] = useState(false);
+  const [isBreak, setIsBreak] = useState(false);
+  const [sessionsToday, setSessionsToday] = useState(0);
+  const intervalRef = useRef(null);
+  const workSecs = parseInt(workMinutes) * 60 || 25 * 60;
+  const breakSecs = parseInt(breakMinutes) * 60 || 5 * 60;
+
+  useEffect(() => {
+    fetchTodaySessions();
+  }, []);
+
+  useEffect(() => {
+    if (running) {
+      intervalRef.current = setInterval(() => {
+        setSecondsLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(intervalRef.current);
+            setRunning(false);
+            handleComplete();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      clearInterval(intervalRef.current);
+    }
+    return () => clearInterval(intervalRef.current);
+  }, [running]);
+
+  async function fetchTodaySessions() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { count } = await supabase
+      .from('sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', session.user.id)
+      .gte('completed_at', today.toISOString());
+    setSessionsToday(count || 0);
+  }
+
+  async function handleComplete() {
+    if (!isBreak) {
+      const duration = parseInt(workMinutes) || 25;
+      await supabase.from('sessions').insert({
+        user_id: session.user.id,
+        duration_minutes: duration,
+      });
+      setSessionsToday(prev => prev + 1);
+      Alert.alert('Pomodoro complete!', 'Session logged. Take a break.');
+      setIsBreak(true);
+      setSecondsLeft(breakSecs);
+    } else {
+      Alert.alert('Break over!', 'Ready for another session?');
+      setIsBreak(false);
+      setSecondsLeft(workSecs);
+    }
+  }
+
+  function handleStartStop() {
+    setRunning(r => !r);
+  }
+
+  function handleReset() {
+    setRunning(false);
+    setIsBreak(false);
+    setSecondsLeft(workSecs);
+  }
+
+  function handleWorkChange(val) {
+    setWorkMinutes(val);
+    if (!running) setSecondsLeft((parseInt(val) || 25) * 60);
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.center}>
+      <Text style={styles.modeLabel}>{isBreak ? 'Break' : 'Focus'}</Text>
+      <Text style={styles.timer}>{formatTime(secondsLeft)}</Text>
+      <Text style={styles.sub}>Sessions today: {sessionsToday}</Text>
+
+      <View style={styles.row}>
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Work (min)</Text>
+          <TextInput
+            style={styles.input}
+            value={workMinutes}
+            onChangeText={handleWorkChange}
+            keyboardType="numeric"
+            editable={!running}
+          />
+        </View>
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Break (min)</Text>
+          <TextInput
+            style={styles.input}
+            value={breakMinutes}
+            onChangeText={setBreakMinutes}
+            keyboardType="numeric"
+            editable={!running}
+          />
+        </View>
+      </View>
+
+      <View style={styles.row}>
+        <TouchableOpacity style={[styles.btn, running && styles.btnStop]} onPress={handleStartStop}>
+          <Text style={styles.btnText}>{running ? 'Pause' : 'Start'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={handleReset}>
+          <Text style={[styles.btnText, { color: '#333' }]}>Reset</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+}
+
+function LeaderboardTab() {
+  const [period, setPeriod] = useState('Weekly');
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { session } = useAuth();
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [period]);
+
+  async function fetchLeaderboard() {
+    setLoading(true);
+    let query = supabase
+      .from('sessions')
+      .select('user_id, duration_minutes, completed_at');
+
+    const now = new Date();
+    if (period === 'Weekly') {
+      const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+      query = query.gte('completed_at', weekAgo.toISOString());
+    } else if (period === 'Monthly') {
+      const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      query = query.gte('completed_at', monthAgo.toISOString());
+    } else if (period === 'Yearly') {
+      const yearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+      query = query.gte('completed_at', yearAgo.toISOString());
+    }
+
+    const { data: sessions, error } = await query;
+    if (error) { console.error(error); setLoading(false); return; }
+
+    // Aggregate by user_id
+    const map = {};
+    for (const row of sessions) {
+      if (!map[row.user_id]) map[row.user_id] = { user_id: row.user_id, total: 0, count: 0 };
+      map[row.user_id].total += row.duration_minutes;
+      map[row.user_id].count += 1;
+    }
+
+    const userIds = Object.keys(map);
+    if (userIds.length === 0) { setData([]); setLoading(false); return; }
+
+    // Fetch profiles for all users
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .in('id', userIds);
+
+    const profileMap = {};
+    for (const p of profiles || []) profileMap[p.id] = p;
+
+    const rows = Object.values(map)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 20)
+      .map(row => ({
+        ...row,
+        full_name: profileMap[row.user_id]?.full_name || 'Unknown',
+      }));
+
+    setData(rows);
+    setLoading(false);
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={styles.periodRow}>
+        {PERIODS.map(p => (
+          <TouchableOpacity
+            key={p}
+            style={[styles.periodBtn, period === p && styles.periodBtnActive]}
+            onPress={() => setPeriod(p)}
+          >
+            <Text style={[styles.periodText, period === p && styles.periodTextActive]}>{p}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {loading ? (
+        <View style={styles.center}><Text>Loading...</Text></View>
+      ) : data.length === 0 ? (
+        <View style={styles.center}><Text style={styles.sub}>No sessions yet for this period.</Text></View>
+      ) : (
+        <ScrollView contentContainerStyle={{ padding: 16 }}>
+          {data.map((row, i) => {
+            const isMe = row.user_id === session.user.id;
+            const hours = Math.floor(row.total / 60);
+            const mins = row.total % 60;
+            const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+            return (
+              <View key={row.user_id} style={[styles.leaderRow, isMe && styles.leaderRowMe]}>
+                <Text style={styles.rank}>#{i + 1}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.leaderName}>{isMe ? `${row.full_name} (You)` : row.full_name}</Text>
+                  <Text style={styles.leaderSub}>{row.count} sessions</Text>
+                </View>
+                <Text style={styles.leaderTime}>{timeStr}</Text>
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+export default function TimerScreen() {
+  const [tab, setTab] = useState('timer');
+
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={styles.tabRow}>
+        <TouchableOpacity style={[styles.tabBtn, tab === 'timer' && styles.tabBtnActive]} onPress={() => setTab('timer')}>
+          <Text style={[styles.tabText, tab === 'timer' && styles.tabTextActive]}>Timer</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tabBtn, tab === 'leaderboard' && styles.tabBtnActive]} onPress={() => setTab('leaderboard')}>
+          <Text style={[styles.tabText, tab === 'leaderboard' && styles.tabTextActive]}>Leaderboard</Text>
+        </TouchableOpacity>
+      </View>
+      {tab === 'timer' ? <TimerTab /> : <LeaderboardTab />}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  modeLabel: { fontSize: 14, fontWeight: '600', color: '#666', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 },
+  timer: { fontSize: 72, fontWeight: '700', fontVariant: ['tabular-nums'], marginBottom: 8 },
+  sub: { fontSize: 13, color: '#999', marginBottom: 24 },
+  row: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  inputGroup: { alignItems: 'center' },
+  inputLabel: { fontSize: 12, color: '#666', marginBottom: 4 },
+  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, width: 80, textAlign: 'center', fontSize: 16 },
+  btn: { backgroundColor: '#007AFF', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 },
+  btnStop: { backgroundColor: '#FF3B30' },
+  btnGhost: { backgroundColor: '#f0f0f0' },
+  btnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  tabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#eee' },
+  tabBtn: { flex: 1, paddingVertical: 14, alignItems: 'center' },
+  tabBtnActive: { borderBottomWidth: 2, borderBottomColor: '#007AFF' },
+  tabText: { fontSize: 15, color: '#999' },
+  tabTextActive: { color: '#007AFF', fontWeight: '600' },
+  periodRow: { flexDirection: 'row', padding: 12, gap: 8 },
+  periodBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: '#f0f0f0', alignItems: 'center' },
+  periodBtnActive: { backgroundColor: '#007AFF' },
+  periodText: { fontSize: 12, color: '#666' },
+  periodTextActive: { color: '#fff', fontWeight: '600' },
+  leaderRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  leaderRowMe: { borderWidth: 2, borderColor: '#007AFF' },
+  rank: { fontSize: 18, fontWeight: '700', width: 36, color: '#333' },
+  leaderName: { fontSize: 15, fontWeight: '600' },
+  leaderSub: { fontSize: 12, color: '#999' },
+  leaderTime: { fontSize: 16, fontWeight: '700', color: '#007AFF' },
+});
