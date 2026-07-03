@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView } from 'react-native';
 import { supabase } from './supabase';
 import { useAuth } from './AuthContext';
+import { useTheme } from './ThemeContext';
 
 const PERIODS = ['Weekly', 'Monthly', 'Yearly', 'All Time'];
 
@@ -13,6 +14,7 @@ function formatTime(seconds) {
 
 function TimerTab() {
   const { session } = useAuth();
+  const { theme } = useTheme();
   const [workMinutes, setWorkMinutes] = useState('25');
   const [breakMinutes, setBreakMinutes] = useState('5');
   const [secondsLeft, setSecondsLeft] = useState(25 * 60);
@@ -91,30 +93,32 @@ function TimerTab() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.center}>
-      <Text style={styles.modeLabel}>{isBreak ? 'Break' : 'Focus'}</Text>
-      <Text style={styles.timer}>{formatTime(secondsLeft)}</Text>
-      <Text style={styles.sub}>Sessions today: {sessionsToday}</Text>
+    <ScrollView contentContainerStyle={[styles.center, { backgroundColor: theme.bg }]}>
+      <Text style={[styles.modeLabel, { color: theme.sub }]}>{isBreak ? 'Break' : 'Focus'}</Text>
+      <Text style={[styles.timer, { color: theme.text }]}>{formatTime(secondsLeft)}</Text>
+      <Text style={[styles.sub, { color: theme.sub }]}>Sessions today: {sessionsToday}</Text>
 
       <View style={styles.row}>
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Work (min)</Text>
+          <Text style={[styles.inputLabel, { color: theme.sub }]}>Work (min)</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.input, borderColor: theme.border, color: theme.text }]}
             value={workMinutes}
             onChangeText={handleWorkChange}
             keyboardType="numeric"
             editable={!running}
+            placeholderTextColor={theme.sub}
           />
         </View>
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Break (min)</Text>
+          <Text style={[styles.inputLabel, { color: theme.sub }]}>Break (min)</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.input, borderColor: theme.border, color: theme.text }]}
             value={breakMinutes}
             onChangeText={setBreakMinutes}
             keyboardType="numeric"
             editable={!running}
+            placeholderTextColor={theme.sub}
           />
         </View>
       </View>
@@ -123,8 +127,8 @@ function TimerTab() {
         <TouchableOpacity style={[styles.btn, running && styles.btnStop]} onPress={handleStartStop}>
           <Text style={styles.btnText}>{running ? 'Pause' : 'Start'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={handleReset}>
-          <Text style={[styles.btnText, { color: '#333' }]}>Reset</Text>
+        <TouchableOpacity style={[styles.btn, { backgroundColor: theme.tag }]} onPress={handleReset}>
+          <Text style={[styles.btnText, { color: theme.tagText }]}>Reset</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -136,6 +140,7 @@ function LeaderboardTab() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const { session } = useAuth();
+  const { theme } = useTheme();
 
   useEffect(() => {
     fetchLeaderboard();
@@ -149,20 +154,16 @@ function LeaderboardTab() {
 
     const now = new Date();
     if (period === 'Weekly') {
-      const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-      query = query.gte('completed_at', weekAgo.toISOString());
+      query = query.gte('completed_at', new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString());
     } else if (period === 'Monthly') {
-      const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-      query = query.gte('completed_at', monthAgo.toISOString());
+      query = query.gte('completed_at', new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()).toISOString());
     } else if (period === 'Yearly') {
-      const yearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-      query = query.gte('completed_at', yearAgo.toISOString());
+      query = query.gte('completed_at', new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString());
     }
 
     const { data: sessions, error } = await query;
     if (error) { console.error(error); setLoading(false); return; }
 
-    // Aggregate by user_id
     const map = {};
     for (const row of sessions) {
       if (!map[row.user_id]) map[row.user_id] = { user_id: row.user_id, total: 0, count: 0 };
@@ -173,10 +174,9 @@ function LeaderboardTab() {
     const userIds = Object.keys(map);
     if (userIds.length === 0) { setData([]); setLoading(false); return; }
 
-    // Fetch profiles for all users
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, full_name, avatar_url')
+      .select('id, full_name')
       .in('id', userIds);
 
     const profileMap = {};
@@ -185,32 +185,29 @@ function LeaderboardTab() {
     const rows = Object.values(map)
       .sort((a, b) => b.total - a.total)
       .slice(0, 20)
-      .map(row => ({
-        ...row,
-        full_name: profileMap[row.user_id]?.full_name || 'Unknown',
-      }));
+      .map(row => ({ ...row, full_name: profileMap[row.user_id]?.full_name || 'Unknown' }));
 
     setData(rows);
     setLoading(false);
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <View style={styles.periodRow}>
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      <View style={[styles.periodRow, { backgroundColor: theme.bg }]}>
         {PERIODS.map(p => (
           <TouchableOpacity
             key={p}
-            style={[styles.periodBtn, period === p && styles.periodBtnActive]}
+            style={[styles.periodBtn, { backgroundColor: theme.tag }, period === p && styles.periodBtnActive]}
             onPress={() => setPeriod(p)}
           >
-            <Text style={[styles.periodText, period === p && styles.periodTextActive]}>{p}</Text>
+            <Text style={[styles.periodText, { color: theme.tagText }, period === p && styles.periodTextActive]}>{p}</Text>
           </TouchableOpacity>
         ))}
       </View>
       {loading ? (
-        <View style={styles.center}><Text>Loading...</Text></View>
+        <View style={[styles.center, { backgroundColor: theme.bg }]}><Text style={{ color: theme.text }}>Loading...</Text></View>
       ) : data.length === 0 ? (
-        <View style={styles.center}><Text style={styles.sub}>No sessions yet for this period.</Text></View>
+        <View style={[styles.center, { backgroundColor: theme.bg }]}><Text style={[styles.sub, { color: theme.sub }]}>No sessions yet for this period.</Text></View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16 }}>
           {data.map((row, i) => {
@@ -219,11 +216,11 @@ function LeaderboardTab() {
             const mins = row.total % 60;
             const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
             return (
-              <View key={row.user_id} style={[styles.leaderRow, isMe && styles.leaderRowMe]}>
-                <Text style={styles.rank}>#{i + 1}</Text>
+              <View key={row.user_id} style={[styles.leaderRow, { backgroundColor: theme.card }, isMe && styles.leaderRowMe]}>
+                <Text style={[styles.rank, { color: theme.text }]}>#{i + 1}</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.leaderName}>{isMe ? `${row.full_name} (You)` : row.full_name}</Text>
-                  <Text style={styles.leaderSub}>{row.count} sessions</Text>
+                  <Text style={[styles.leaderName, { color: theme.text }]}>{isMe ? `${row.full_name} (You)` : row.full_name}</Text>
+                  <Text style={[styles.leaderSub, { color: theme.sub }]}>{row.count} sessions</Text>
                 </View>
                 <Text style={styles.leaderTime}>{timeStr}</Text>
               </View>
@@ -237,15 +234,16 @@ function LeaderboardTab() {
 
 export default function TimerScreen() {
   const [tab, setTab] = useState('timer');
+  const { theme } = useTheme();
 
   return (
-    <View style={{ flex: 1 }}>
-      <View style={styles.tabRow}>
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      <View style={[styles.tabRow, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
         <TouchableOpacity style={[styles.tabBtn, tab === 'timer' && styles.tabBtnActive]} onPress={() => setTab('timer')}>
-          <Text style={[styles.tabText, tab === 'timer' && styles.tabTextActive]}>Timer</Text>
+          <Text style={[styles.tabText, { color: theme.sub }, tab === 'timer' && styles.tabTextActive]}>Timer</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.tabBtn, tab === 'leaderboard' && styles.tabBtnActive]} onPress={() => setTab('leaderboard')}>
-          <Text style={[styles.tabText, tab === 'leaderboard' && styles.tabTextActive]}>Leaderboard</Text>
+          <Text style={[styles.tabText, { color: theme.sub }, tab === 'leaderboard' && styles.tabTextActive]}>Leaderboard</Text>
         </TouchableOpacity>
       </View>
       {tab === 'timer' ? <TimerTab /> : <LeaderboardTab />}
@@ -255,31 +253,30 @@ export default function TimerScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  modeLabel: { fontSize: 14, fontWeight: '600', color: '#666', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 },
+  modeLabel: { fontSize: 14, fontWeight: '600', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 },
   timer: { fontSize: 72, fontWeight: '700', fontVariant: ['tabular-nums'], marginBottom: 8 },
-  sub: { fontSize: 13, color: '#999', marginBottom: 24 },
+  sub: { fontSize: 13, marginBottom: 24 },
   row: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   inputGroup: { alignItems: 'center' },
-  inputLabel: { fontSize: 12, color: '#666', marginBottom: 4 },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, width: 80, textAlign: 'center', fontSize: 16 },
+  inputLabel: { fontSize: 12, marginBottom: 4 },
+  input: { borderWidth: 1, borderRadius: 8, padding: 10, width: 80, textAlign: 'center', fontSize: 16 },
   btn: { backgroundColor: '#007AFF', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 },
   btnStop: { backgroundColor: '#FF3B30' },
-  btnGhost: { backgroundColor: '#f0f0f0' },
   btnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  tabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#eee' },
+  tabRow: { flexDirection: 'row', borderBottomWidth: 1 },
   tabBtn: { flex: 1, paddingVertical: 14, alignItems: 'center' },
   tabBtnActive: { borderBottomWidth: 2, borderBottomColor: '#007AFF' },
-  tabText: { fontSize: 15, color: '#999' },
+  tabText: { fontSize: 15 },
   tabTextActive: { color: '#007AFF', fontWeight: '600' },
   periodRow: { flexDirection: 'row', padding: 12, gap: 8 },
-  periodBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: '#f0f0f0', alignItems: 'center' },
+  periodBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   periodBtnActive: { backgroundColor: '#007AFF' },
-  periodText: { fontSize: 12, color: '#666' },
+  periodText: { fontSize: 12 },
   periodTextActive: { color: '#fff', fontWeight: '600' },
-  leaderRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  leaderRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, padding: 16, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   leaderRowMe: { borderWidth: 2, borderColor: '#007AFF' },
-  rank: { fontSize: 18, fontWeight: '700', width: 36, color: '#333' },
+  rank: { fontSize: 18, fontWeight: '700', width: 36 },
   leaderName: { fontSize: 15, fontWeight: '600' },
-  leaderSub: { fontSize: 12, color: '#999' },
+  leaderSub: { fontSize: 12 },
   leaderTime: { fontSize: 16, fontWeight: '700', color: '#007AFF' },
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Text, View, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Button, ScrollView } from 'react-native';
@@ -7,8 +7,10 @@ import MapView, { Marker, Callout } from 'react-native-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 import { AuthProvider, useAuth } from './AuthContext';
+import { ThemeProvider, useTheme } from './ThemeContext';
 import LoginScreen from './LoginScreen';
 import TimerScreen from './TimerScreen';
+import ProfileScreen from './ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -27,25 +29,27 @@ async function toggleFavourite(space) {
 }
 
 function SpaceCard({ space, onPress, isFav, onToggleFav }) {
+  const { theme } = useTheme();
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress}>
+    <TouchableOpacity style={[styles.card, { backgroundColor: theme.card }]} onPress={onPress}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        <Text style={[styles.cardTitle, { flex: 1 }]}>{space.name}</Text>
+        <Text style={[styles.cardTitle, { color: theme.text, flex: 1 }]}>{space.name}</Text>
         <TouchableOpacity onPress={onToggleFav}>
           <Text style={{ fontSize: 20 }}>{isFav ? '❤️' : '🤍'}</Text>
         </TouchableOpacity>
       </View>
-      <Text style={styles.cardSub}>{space.building}</Text>
+      <Text style={[styles.cardSub, { color: theme.sub }]}>{space.building}</Text>
       <View style={styles.tags}>
-        <Text style={styles.tag}>{space.noise}</Text>
-        {space.wifi && <Text style={styles.tag}>WiFi</Text>}
-        {space.power && <Text style={styles.tag}>Power</Text>}
+        <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>{space.noise}</Text>
+        {space.wifi && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>WiFi</Text>}
+        {space.power && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>Power</Text>}
       </View>
     </TouchableOpacity>
   );
 }
 
 function SpacesListScreen({ navigation }) {
+  const { theme } = useTheme();
   const [spaces, setSpaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const [favourites, setFavourites] = useState([]);
@@ -69,12 +73,13 @@ function SpacesListScreen({ navigation }) {
     );
   }
 
-  if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
+  if (loading) return <View style={[styles.center, { backgroundColor: theme.bg }]}><ActivityIndicator /></View>;
 
   return (
     <FlatList
       data={spaces}
       keyExtractor={(item) => item.id}
+      style={{ backgroundColor: theme.bg }}
       renderItem={({ item }) => (
         <SpaceCard
           space={item}
@@ -89,6 +94,7 @@ function SpacesListScreen({ navigation }) {
 }
 
 function SpaceDetailScreen({ route }) {
+  const { theme } = useTheme();
   const { space } = route.params;
   const [reviews, setReviews] = useState([]);
   const [comment, setComment] = useState('');
@@ -138,47 +144,49 @@ function SpaceDetailScreen({ route }) {
   }
 
   return (
-    <ScrollView style={styles.detail}>
+    <ScrollView style={[styles.detail, { backgroundColor: theme.bg }]}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={[styles.detailTitle, { flex: 1 }]}>{space.name}</Text>
+        <Text style={[styles.detailTitle, { color: theme.text, flex: 1 }]}>{space.name}</Text>
         <TouchableOpacity onPress={handleToggleFav}>
           <Text style={{ fontSize: 28 }}>{isFav ? '❤️' : '🤍'}</Text>
         </TouchableOpacity>
       </View>
-      <Text style={styles.cardSub}>{space.building}</Text>
+      <Text style={[styles.cardSub, { color: theme.sub }]}>{space.building}</Text>
       <View style={styles.tags}>
-        <Text style={styles.tag}>{space.noise}</Text>
-        {space.wifi && <Text style={styles.tag}>WiFi</Text>}
-        {space.power && <Text style={styles.tag}>Power</Text>}
-        <Text style={styles.tag}>Floors: {space.floors}</Text>
+        <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>{space.noise}</Text>
+        {space.wifi && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>WiFi</Text>}
+        {space.power && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>Power</Text>}
+        <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>Floors: {space.floors}</Text>
       </View>
 
-      <Text style={styles.sectionTitle}>Leave a Review</Text>
+      <Text style={[styles.sectionTitle, { color: theme.text }]}>Leave a Review</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, { backgroundColor: theme.input, borderColor: theme.border, color: theme.text }]}
         placeholder="Write your review..."
+        placeholderTextColor={theme.sub}
         value={comment}
         onChangeText={setComment}
         multiline
       />
       <TextInput
-        style={styles.input}
+        style={[styles.input, { backgroundColor: theme.input, borderColor: theme.border, color: theme.text }]}
         placeholder="Rating (1-5)"
+        placeholderTextColor={theme.sub}
         value={rating}
         onChangeText={setRating}
         keyboardType="numeric"
       />
       <Button title={submitting ? 'Submitting...' : 'Submit Review'} onPress={submitReview} disabled={submitting} />
 
-      <Text style={styles.sectionTitle}>Reviews</Text>
+      <Text style={[styles.sectionTitle, { color: theme.text }]}>Reviews</Text>
       {loading ? <ActivityIndicator /> : reviews.length === 0 ? (
-        <Text style={styles.cardSub}>No reviews yet. Be the first!</Text>
+        <Text style={[styles.cardSub, { color: theme.sub }]}>No reviews yet. Be the first!</Text>
       ) : (
         reviews.map((r) => (
-          <View key={r.id} style={styles.reviewCard}>
+          <View key={r.id} style={[styles.reviewCard, { backgroundColor: theme.card }]}>
             <Text style={styles.reviewRating}>{'⭐'.repeat(r.rating)}</Text>
-            <Text style={styles.reviewComment}>{r.comment}</Text>
-            <Text style={styles.reviewDate}>{new Date(r.created_at).toLocaleDateString()}</Text>
+            <Text style={[styles.reviewComment, { color: theme.text }]}>{r.comment}</Text>
+            <Text style={[styles.reviewDate, { color: theme.sub }]}>{new Date(r.created_at).toLocaleDateString()}</Text>
           </View>
         ))
       )}
@@ -237,6 +245,7 @@ function MapScreen({ navigation }) {
 }
 
 function FavouritesScreen({ navigation }) {
+  const { theme } = useTheme();
   const [favourites, setFavourites] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -256,16 +265,17 @@ function FavouritesScreen({ navigation }) {
     loadFavourites();
   }
 
-  if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
+  if (loading) return <View style={[styles.center, { backgroundColor: theme.bg }]}><ActivityIndicator /></View>;
 
   return favourites.length === 0 ? (
-    <View style={styles.center}>
-      <Text style={styles.cardSub}>No favourites yet. Tap ❤️ on any space.</Text>
+    <View style={[styles.center, { backgroundColor: theme.bg }]}>
+      <Text style={[styles.cardSub, { color: theme.sub }]}>No favourites yet. Tap ❤️ on any space.</Text>
     </View>
   ) : (
     <FlatList
       data={favourites}
       keyExtractor={(item) => item.id}
+      style={{ backgroundColor: theme.bg }}
       renderItem={({ item }) => (
         <SpaceCard
           space={item}
@@ -280,24 +290,26 @@ function FavouritesScreen({ navigation }) {
 }
 
 function MainApp() {
-  const { session, loading, signOut } = useAuth();
+  const { session, loading } = useAuth();
+  const { theme } = useTheme();
 
-  if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
+  if (loading) return <View style={[styles.center, { backgroundColor: theme.bg }]}><ActivityIndicator /></View>;
   if (!session) return <LoginScreen />;
 
   return (
-    <NavigationContainer>
-      <Tab.Navigator>
+    <NavigationContainer theme={theme.dark ? DarkTheme : DefaultTheme}>
+      <Tab.Navigator
+        screenOptions={{
+          tabBarStyle: { backgroundColor: theme.tabBar },
+          tabBarActiveTintColor: '#007AFF',
+          tabBarInactiveTintColor: theme.sub,
+        }}
+      >
         <Tab.Screen name="Map" component={MapScreen} />
-        <Tab.Screen name="Timer" component={TimerScreen} />
         <Tab.Screen name="Spaces" component={SpacesScreen} options={{ headerShown: false }} />
         <Tab.Screen name="Favourites" component={FavouritesScreen} />
-        <Tab.Screen name="Account" children={() => (
-          <View style={styles.center}>
-            <Text style={{ marginBottom: 16 }}>{session.user.email}</Text>
-            <Button title="Sign out" onPress={signOut} />
-          </View>
-        )} />
+        <Tab.Screen name="Timer" component={TimerScreen} />
+        <Tab.Screen name="Profile" component={ProfileScreen} />
       </Tab.Navigator>
     </NavigationContainer>
   );
@@ -305,9 +317,11 @@ function MainApp() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <MainApp />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <MainApp />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
@@ -315,7 +329,6 @@ const styles = StyleSheet.create({
   list: { padding: 16 },
   detail: { padding: 16 },
   card: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -325,7 +338,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   reviewCard: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -336,28 +348,24 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
   detailTitle: { fontSize: 22, fontWeight: '700', marginBottom: 4 },
-  cardSub: { fontSize: 13, color: '#666', marginBottom: 8 },
+  cardSub: { fontSize: 13, marginBottom: 8 },
   tags: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 8 },
   tag: {
-    backgroundColor: '#f0f0f0',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
     fontSize: 12,
-    color: '#333',
   },
   sectionTitle: { fontSize: 18, fontWeight: '600', marginTop: 24, marginBottom: 12 },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
     marginBottom: 12,
     fontSize: 14,
-    backgroundColor: '#fff',
   },
   reviewRating: { fontSize: 16, marginBottom: 4 },
   reviewComment: { fontSize: 14, marginBottom: 4 },
-  reviewDate: { fontSize: 12, color: '#999' },
+  reviewDate: { fontSize: 12 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });
