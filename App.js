@@ -40,6 +40,9 @@ function SpaceCard({ space, onPress, isFav, onToggleFav }) {
         </TouchableOpacity>
       </View>
       <Text style={[styles.cardSub, { color: theme.sub }]}>{space.building}</Text>
+      {space.avgRating && (
+        <Text style={{ color: '#FFD700', fontSize: 13, marginBottom: 6 }}>⭐ {space.avgRating}</Text>
+      )}
       <View style={styles.tags}>
         <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>{space.noise}</Text>
         {space.wifi && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>WiFi</Text>}
@@ -67,7 +70,7 @@ function SpaceDetailScreen({ route }) {
   async function fetchReviews() {
     const { data, error } = await supabase
       .from('reviews')
-      .select('*')
+      .select('*, profiles(full_name)')
       .eq('space_id', space.id)
       .order('created_at', { ascending: false });
     if (error) console.error(error);
@@ -88,7 +91,7 @@ function SpaceDetailScreen({ route }) {
     if (error) console.error(error);
     else {
       setComment('');
-      setRating('5');
+      setRating('0');
       fetchReviews();
     }
     setSubmitting(false);
@@ -139,6 +142,9 @@ function SpaceDetailScreen({ route }) {
       ) : (
         reviews.map((r) => (
           <View key={r.id} style={[styles.reviewCard, { backgroundColor: theme.card }]}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: theme.text, marginBottom: 4 }}>
+              {r.profiles?.full_name || 'Unknown'}
+            </Text>
             <Text style={styles.reviewRating}>{'⭐'.repeat(r.rating)}</Text>
             <Text style={[styles.reviewComment, { color: theme.text }]}>{r.comment}</Text>
             <Text style={[styles.reviewDate, { color: theme.sub }]}>{new Date(r.created_at).toLocaleDateString()}</Text>

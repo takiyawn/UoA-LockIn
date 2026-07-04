@@ -17,6 +17,11 @@ function SpaceCard({ space, onPress, isFav, onToggleFav }) {
         </TouchableOpacity>
       </View>
       <Text style={[styles.cardSub, { color: theme.sub }]}>{space.building}</Text>
+          {space.avgRating && (
+      <Text style={{ color: '#FFD700', fontSize: 13, marginBottom: 6 }}>
+        ⭐ {space.avgRating}
+      </Text>
+    )}
       <View style={styles.tags}>
         <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>{space.noise}</Text>
         {space.wifi && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>WiFi</Text>}
@@ -77,12 +82,27 @@ export default function SpacesListScreen({ navigation, getFavourites, toggleFavo
     async function load() {
       const { data, error } = await supabase.from('spaces').select('*');
       if (error) console.error(error);
-      else setSpaces(data);
+
+      const { data: reviews } = await supabase.from('reviews').select('space_id, rating');
+
+      const avgMap = {};
+      for (const r of reviews || []) {
+        if (!avgMap[r.space_id]) avgMap[r.space_id] = { total: 0, count: 0 };
+        avgMap[r.space_id].total += r.rating;
+        avgMap[r.space_id].count += 1;
+      }
+
+      const spacesWithRatings = (data || []).map(s => ({
+        ...s,
+        avgRating: avgMap[s.id] ? (avgMap[s.id].total / avgMap[s.id].count).toFixed(1) : null,
+      }));
+
+      setSpaces(spacesWithRatings);
       const favs = await getFavourites();
       setFavourites(favs.map((f) => f.id));
       setLoading(false);
     }
-    load();
+        load();
   }, []);
 
   async function handleToggleFav(space) {
