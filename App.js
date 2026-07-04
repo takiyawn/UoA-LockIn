@@ -13,6 +13,7 @@ import TimerScreen from './TimerScreen';
 import ProfileScreen from './ProfileScreen';
 import SpacesListScreen from './SpacesListScreen';
 import { Ionicons } from '@expo/vector-icons';
+import HomeScreen from './HomeScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -275,6 +276,7 @@ function MainApp() {
           tabBarInactiveTintColor: theme.sub,
           tabBarIcon: ({ focused, color, size }) => {
             const icons = {
+              Home: focused ? 'home' : 'home-outline',
               Map: focused ? 'map' : 'map-outline',
               Spaces: focused ? 'business' : 'business-outline',
               Favourites: focused ? 'heart' : 'heart-outline',
@@ -285,6 +287,7 @@ function MainApp() {
           },
         })}
       >
+        <Tab.Screen name="Home" component={HomeScreen} />
         <Tab.Screen name="Map" component={MapScreen} />
         <Tab.Screen name="Spaces" component={SpacesScreen} options={{ headerShown: false }} />
         <Tab.Screen name="Favourites" component={FavouritesScreen} />
