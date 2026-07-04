@@ -11,16 +11,17 @@ import { ThemeProvider, useTheme } from './ThemeContext';
 import LoginScreen from './LoginScreen';
 import TimerScreen from './TimerScreen';
 import ProfileScreen from './ProfileScreen';
+import SpacesListScreen from './SpacesListScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-async function getFavourites() {
+export async function getFavourites() {
   const json = await AsyncStorage.getItem('favourites');
   return json ? JSON.parse(json) : [];
 }
 
-async function toggleFavourite(space) {
+export async function toggleFavourite(space) {
   const favs = await getFavourites();
   const exists = favs.find((f) => f.id === space.id);
   const updated = exists ? favs.filter((f) => f.id !== space.id) : [...favs, space];
@@ -48,57 +49,12 @@ function SpaceCard({ space, onPress, isFav, onToggleFav }) {
   );
 }
 
-function SpacesListScreen({ navigation }) {
-  const { theme } = useTheme();
-  const [spaces, setSpaces] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [favourites, setFavourites] = useState([]);
-
-  useEffect(() => {
-    async function load() {
-      const { data, error } = await supabase.from('spaces').select('*');
-      if (error) console.error(error);
-      else setSpaces(data);
-      const favs = await getFavourites();
-      setFavourites(favs.map((f) => f.id));
-      setLoading(false);
-    }
-    load();
-  }, []);
-
-  async function handleToggleFav(space) {
-    const isNowFav = await toggleFavourite(space);
-    setFavourites((prev) =>
-      isNowFav ? [...prev, space.id] : prev.filter((id) => id !== space.id)
-    );
-  }
-
-  if (loading) return <View style={[styles.center, { backgroundColor: theme.bg }]}><ActivityIndicator /></View>;
-
-  return (
-    <FlatList
-      data={spaces}
-      keyExtractor={(item) => item.id}
-      style={{ backgroundColor: theme.bg }}
-      renderItem={({ item }) => (
-        <SpaceCard
-          space={item}
-          onPress={() => navigation.navigate('SpaceDetail', { space: item })}
-          isFav={favourites.includes(item.id)}
-          onToggleFav={() => handleToggleFav(item)}
-        />
-      )}
-      contentContainerStyle={styles.list}
-    />
-  );
-}
-
 function SpaceDetailScreen({ route }) {
   const { theme } = useTheme();
   const { space } = route.params;
   const [reviews, setReviews] = useState([]);
   const [comment, setComment] = useState('');
-  const [rating, setRating] = useState('5');
+  const [rating, setRating] = useState('0');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isFav, setIsFav] = useState(false);
@@ -120,7 +76,7 @@ function SpaceDetailScreen({ route }) {
   }
 
   async function submitReview() {
-    if (!comment.trim()) return;
+    if (!comment.trim() || parseInt(rating) === 0) return;
     setSubmitting(true);
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from('reviews').insert({
@@ -168,14 +124,13 @@ function SpaceDetailScreen({ route }) {
         onChangeText={setComment}
         multiline
       />
-      <TextInput
-        style={[styles.input, { backgroundColor: theme.input, borderColor: theme.border, color: theme.text }]}
-        placeholder="Rating (1-5)"
-        placeholderTextColor={theme.sub}
-        value={rating}
-        onChangeText={setRating}
-        keyboardType="numeric"
-      />
+      <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+        {[1, 2, 3, 4, 5].map(star => (
+          <TouchableOpacity key={star} onPress={() => setRating(String(star))}>
+            <Text style={{ fontSize: 32, color: star <= parseInt(rating) ? '#FFD700' : theme.border }}>★</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
       <Button title={submitting ? 'Submitting...' : 'Submit Review'} onPress={submitReview} disabled={submitting} />
 
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Reviews</Text>
@@ -197,7 +152,15 @@ function SpaceDetailScreen({ route }) {
 function SpacesScreen() {
   return (
     <Stack.Navigator>
-      <Stack.Screen name="SpacesList" component={SpacesListScreen} options={{ title: 'Study Spaces' }} />
+      <Stack.Screen name="SpacesList" options={{ title: 'Study Spaces' }}>
+        {(props) => (
+          <SpacesListScreen
+            {...props}
+            getFavourites={getFavourites}
+            toggleFavourite={toggleFavourite}
+          />
+        )}
+      </Stack.Screen>
       <Stack.Screen name="SpaceDetail" component={SpaceDetailScreen} options={({ route }) => ({ title: route.params.space.name })} />
     </Stack.Navigator>
   );
@@ -328,42 +291,15 @@ export default function App() {
 const styles = StyleSheet.create({
   list: { padding: 16 },
   detail: { padding: 16 },
-  card: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  reviewCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
+  card: { borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
+  reviewCard: { borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
   cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
   detailTitle: { fontSize: 22, fontWeight: '700', marginBottom: 4 },
   cardSub: { fontSize: 13, marginBottom: 8 },
   tags: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 8 },
-  tag: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    fontSize: 12,
-  },
+  tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, fontSize: 12 },
   sectionTitle: { fontSize: 18, fontWeight: '600', marginTop: 24, marginBottom: 12 },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    fontSize: 14,
-  },
+  input: { borderWidth: 1, borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 14 },
   reviewRating: { fontSize: 16, marginBottom: 4 },
   reviewComment: { fontSize: 14, marginBottom: 4 },
   reviewDate: { fontSize: 12 },
