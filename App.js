@@ -12,6 +12,7 @@ import LoginScreen from './LoginScreen';
 import TimerScreen from './TimerScreen';
 import ProfileScreen from './ProfileScreen';
 import SpacesListScreen from './SpacesListScreen';
+import { Ionicons } from '@expo/vector-icons';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -268,11 +269,21 @@ function MainApp() {
   return (
     <NavigationContainer theme={theme.dark ? DarkTheme : DefaultTheme}>
       <Tab.Navigator
-        screenOptions={{
+        screenOptions={({ route }) => ({
           tabBarStyle: { backgroundColor: theme.tabBar },
           tabBarActiveTintColor: '#007AFF',
           tabBarInactiveTintColor: theme.sub,
-        }}
+          tabBarIcon: ({ focused, color, size }) => {
+            const icons = {
+              Map: focused ? 'map' : 'map-outline',
+              Spaces: focused ? 'business' : 'business-outline',
+              Favourites: focused ? 'heart' : 'heart-outline',
+              Timer: focused ? 'timer' : 'timer-outline',
+              Profile: focused ? 'person' : 'person-outline',
+            };
+            return <Ionicons name={icons[route.name]} size={size} color={color} />;
+          },
+        })}
       >
         <Tab.Screen name="Map" component={MapScreen} />
         <Tab.Screen name="Spaces" component={SpacesScreen} options={{ headerShown: false }} />
