@@ -295,12 +295,12 @@ function MainApp() {
           },
         })}
       >
-        <Tab.Screen name="Map" component={MapScreen} />
+        <Tab.Screen name="Map" component={MapScreen} options={{headerShown: false}} />
         <Tab.Screen name="Spaces" component={SpacesScreen} options={{ headerShown: false }} />
         <Tab.Screen name="Home" options={{headerShown: false}}>
           {(props) => <HomeScreen {...props} />}
         </Tab.Screen>
-        <Tab.Screen name="Timer" component={TimerScreen} />
+        <Tab.Screen name="Timer" component={TimerScreen} options={{headerShown: true}} />
       </Tab.Navigator>
     </NavigationContainer>
   );
