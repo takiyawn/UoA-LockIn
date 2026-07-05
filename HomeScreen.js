@@ -172,7 +172,7 @@ function FavouritesList({ navigation, theme }) {
 
 export default function HomeScreen({ navigation }) {
   const { session, signOut } = useAuth();
-  const { theme } = useTheme();
+  const { theme, toggle } = useTheme();
   const [period, setPeriod] = useState('Weekly');
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -249,22 +249,27 @@ export default function HomeScreen({ navigation }) {
         <Text style={[styles.greeting, { color: theme.text, marginBottom: 0 }]}>
           Hey, {session.user.user_metadata?.full_name?.split(' ')[0] || 'there'} 👋
         </Text>
-        <TouchableOpacity onPress={() => {
-          Alert.alert(
-            session.user.user_metadata?.full_name || 'Account',
-            session.user.email,
-            [
-              { text: 'Sign Out', style: 'destructive', onPress: signOut },
-              { text: 'Cancel', style: 'cancel' },
-            ]
-          );
-        }}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={{ width: 36, height: 36, borderRadius: 18 }} />
-          ) : (
-            <Ionicons name="person-circle-outline" size={36} color={theme.text} />
-          )}
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <TouchableOpacity onPress={toggle}>
+            <Ionicons name={theme.dark ? 'sunny-outline' : 'moon-outline'} size={26} color={theme.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => {
+            Alert.alert(
+              session.user.user_metadata?.full_name || 'Account',
+              session.user.email,
+              [
+                { text: 'Sign Out', style: 'destructive', onPress: signOut },
+                { text: 'Cancel', style: 'cancel' },
+              ]
+            );
+          }}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={{ width: 36, height: 36, borderRadius: 18 }} />
+            ) : (
+              <Ionicons name="person-circle-outline" size={36} color={theme.text} />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Period selector */}
