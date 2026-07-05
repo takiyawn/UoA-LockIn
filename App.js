@@ -66,6 +66,7 @@ function SpaceDetailScreen({ route }) {
 
   useEffect(() => {
     fetchReviews();
+    fetchOccupancy();
     getFavourites().then((favs) => setIsFav(!!favs.find((f) => f.id === space.id)));
   }, []);
 
@@ -78,6 +79,34 @@ function SpaceDetailScreen({ route }) {
     if (error) console.error(error);
     else setReviews(data);
     setLoading(false);
+  }
+
+  const [occupancy, setOccupancy] = useState(null);
+  const [reporting, setReporting] = useState(false);
+
+  async function fetchOccupancy() {
+    const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from('occupancy')
+      .select('status')
+      .eq('space_id', space.id)
+      .gte('created_at', cutoff);
+
+    if (!data || data.length === 0) { setOccupancy(null); return; }
+    const busy = data.filter(r => r.status === 'busy').length;
+    setOccupancy(busy / data.length > 0.5 ? 'busy' : 'quiet');
+  }
+
+  async function reportOccupancy(status) {
+    setReporting(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from('occupancy').insert({
+      space_id: space.id,
+      user_id: user.id,
+      status,
+    });
+    fetchOccupancy();
+    setReporting(false);
   }
 
   async function submitReview() {
@@ -118,6 +147,32 @@ function SpaceDetailScreen({ route }) {
         {space.wifi && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>WiFi</Text>}
         {space.power && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>Power</Text>}
         <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>Floors: {space.floors}</Text>
+      </View>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 }}>
+  {occupancy && (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: occupancy === 'busy' ? '#FF3B30' : '#34C759' }} />
+      <Text style={{ color: theme.sub, fontSize: 13 }}>{occupancy === 'busy' ? 'Usually busy' : 'Usually quiet'} right now</Text>
+    </View>
+  )}
+</View>
+
+      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+        <TouchableOpacity
+          style={{ flex: 1, padding: 12, borderRadius: 10, backgroundColor: '#FF3B30', alignItems: 'center' }}
+          onPress={() => reportOccupancy('busy')}
+          disabled={reporting}
+        >
+          <Text style={{ color: '#fff', fontWeight: '600' }}>🔴 It's busy</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ flex: 1, padding: 12, borderRadius: 10, backgroundColor: '#34C759', alignItems: 'center' }}
+          onPress={() => reportOccupancy('quiet')}
+          disabled={reporting}
+        >
+          <Text style={{ color: '#fff', fontWeight: '600' }}>🟢 It's quiet</Text>
+        </TouchableOpacity>
       </View>
 
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Leave a Review</Text>
