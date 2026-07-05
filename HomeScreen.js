@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ActivityIndicator, Dimensions, TouchableOpacity
 import { supabase } from './supabase';
 import { useAuth } from './AuthContext';
 import { useTheme } from './ThemeContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FlatList } from 'react-native';
 
 const PERIODS = ['Day', 'Weekly', 'Monthly', 'Yearly'];
 const screenWidth = Dimensions.get('window').width - 32;
@@ -81,7 +83,93 @@ function CustomBarChart({ data, theme }) {
   );
 }
 
-export default function HomeScreen() {
+function FavouritesList({ navigation, theme }) {
+  const [favourites, setFavourites] = useState([]);
+
+  useEffect(() => {
+    load();
+    const unsubscribe = navigation.addListener('focus', load);
+    return unsubscribe;
+  }, [navigation]);
+
+  async function load() {
+    const json = await AsyncStorage.getItem('favourites');
+    const favs = json ? JSON.parse(json) : [];
+
+    if (favs.length === 0) { setFavourites([]); return; }
+
+    // Fetch occupancy for favourited spaces
+    const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { data: occupancyData } = await supabase
+      .from('occupancy')
+      .select('space_id, status')
+      .in('space_id', favs.map(f => f.id))
+      .gte('created_at', cutoff);
+
+    const occMap = {};
+    for (const r of occupancyData || []) {
+      if (!occMap[r.space_id]) occMap[r.space_id] = { busy: 0, quiet: 0 };
+      occMap[r.space_id][r.status]++;
+    }
+
+    const favsWithOccupancy = favs.map(s => ({
+      ...s,
+      occupancy: occMap[s.id]
+        ? (occMap[s.id].busy / (occMap[s.id].busy + occMap[s.id].quiet) > 0.5 ? 'busy' : 'quiet')
+        : null,
+    }));
+
+    setFavourites(favsWithOccupancy);
+  }
+
+  async function handleUnfavourite(space) {
+    const json = await AsyncStorage.getItem('favourites');
+    const favs = json ? JSON.parse(json) : [];
+    const updated = favs.filter(f => f.id !== space.id);
+    await AsyncStorage.setItem('favourites', JSON.stringify(updated));
+    load();
+  }
+
+  return (
+    <View style={{ marginTop: 24 }}>
+      <Text style={{ fontSize: 16, fontWeight: '600', color: theme.text, marginBottom: 12 }}>Favourite Spots</Text>
+      {favourites.length === 0 ? (
+        <TouchableOpacity
+          style={{ backgroundColor: theme.card, borderRadius: 12, padding: 16, alignItems: 'center' }}
+          onPress={() => navigation.navigate('Spaces')}
+        >
+          <Text style={{ color: theme.sub, fontSize: 14 }}>No favourite spots yet. Tap ❤️ on any space →</Text>
+        </TouchableOpacity>
+      ) : (
+        favourites.map(space => (
+          <TouchableOpacity
+            key={space.id}
+            style={{ backgroundColor: theme.card, borderRadius: 12, padding: 16, marginBottom: 10 }}
+            onPress={() => navigation.navigate('Spaces', { screen: 'SpaceDetail', params: { space } })}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontWeight: '600', color: theme.text, fontSize: 15 }}>{space.name}</Text>
+                <Text style={{ fontSize: 12, color: theme.sub, marginTop: 2 }}>{space.building}</Text>
+                {space.occupancy && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: space.occupancy === 'busy' ? '#FF3B30' : '#34C759' }} />
+                    <Text style={{ color: theme.sub, fontSize: 12 }}>{space.occupancy === 'busy' ? 'Busy' : 'Quiet'} right now</Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => handleUnfavourite(space)} style={{ paddingLeft: 12 }}>
+                <Text style={{ fontSize: 20 }}>❤️</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        ))
+      )}
+    </View>
+  );
+}
+
+export default function HomeScreen({ navigation }) {
   const { session } = useAuth();
   const { theme } = useTheme();
   const [period, setPeriod] = useState('Weekly');
@@ -156,6 +244,7 @@ export default function HomeScreen() {
           <CustomBarChart data={chartData} theme={theme} />
         </View>
       )}
+      <FavouritesList navigation={navigation} theme={theme} />
     </ScrollView>
   );
 }

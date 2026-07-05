@@ -270,51 +270,6 @@ function MapScreen({ navigation }) {
   );
 }
 
-function FavouritesScreen({ navigation }) {
-  const { theme } = useTheme();
-  const [favourites, setFavourites] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', loadFavourites);
-    return unsubscribe;
-  }, [navigation]);
-
-  async function loadFavourites() {
-    const favs = await getFavourites();
-    setFavourites(favs);
-    setLoading(false);
-  }
-
-  async function handleToggleFav(space) {
-    await toggleFavourite(space);
-    loadFavourites();
-  }
-
-  if (loading) return <View style={[styles.center, { backgroundColor: theme.bg }]}><ActivityIndicator /></View>;
-
-  return favourites.length === 0 ? (
-    <View style={[styles.center, { backgroundColor: theme.bg }]}>
-      <Text style={[styles.cardSub, { color: theme.sub }]}>No favourites yet. Tap ❤️ on any space.</Text>
-    </View>
-  ) : (
-    <FlatList
-      data={favourites}
-      keyExtractor={(item) => item.id}
-      style={{ backgroundColor: theme.bg }}
-      renderItem={({ item }) => (
-        <SpaceCard
-          space={item}
-          onPress={() => navigation.navigate('Spaces', { screen: 'SpaceDetail', params: { space: item } })}
-          isFav={true}
-          onToggleFav={() => handleToggleFav(item)}
-        />
-      )}
-      contentContainerStyle={styles.list}
-    />
-  );
-}
-
 function MainApp() {
   const { session, loading } = useAuth();
   const { theme } = useTheme();
@@ -334,7 +289,6 @@ function MainApp() {
               Home: focused ? 'home' : 'home-outline',
               Map: focused ? 'map' : 'map-outline',
               Spaces: focused ? 'business' : 'business-outline',
-              Favourites: focused ? 'heart' : 'heart-outline',
               Timer: focused ? 'timer' : 'timer-outline',
               Profile: focused ? 'person' : 'person-outline',
             };
@@ -342,10 +296,11 @@ function MainApp() {
           },
         })}
       >
-        <Tab.Screen name="Home" component={HomeScreen} />
+        <Tab.Screen name="Home">
+          {(props) => <HomeScreen {...props} />}
+        </Tab.Screen>
         <Tab.Screen name="Map" component={MapScreen} />
         <Tab.Screen name="Spaces" component={SpacesScreen} options={{ headerShown: false }} />
-        <Tab.Screen name="Favourites" component={FavouritesScreen} />
         <Tab.Screen name="Timer" component={TimerScreen} />
         <Tab.Screen name="Profile" component={ProfileScreen} />
       </Tab.Navigator>
