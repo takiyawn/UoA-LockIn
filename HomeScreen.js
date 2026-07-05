@@ -7,7 +7,6 @@ import { useTheme } from './ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FlatList } from 'react-native';
 
-
 const PERIODS = ['Day', 'Weekly', 'Monthly', 'Yearly'];
 const screenWidth = Dimensions.get('window').width - 32;
 
@@ -180,6 +179,7 @@ export default function HomeScreen({ navigation }) {
   const [totalHours, setTotalHours] = useState(0);
   const [totalSessions, setTotalSessions] = useState(0);
   const [avatarUrl, setAvatarUrl] = useState(null);
+  const [streak, setStreak] = useState(0);
 
   useEffect(() => {
     supabase.from('profiles').select('avatar_url').eq('id', session.user.id).single()
@@ -204,6 +204,37 @@ export default function HomeScreen({ navigation }) {
     const total = (data || []).reduce((sum, s) => sum + s.duration_minutes, 0);
     setTotalHours((total / 60).toFixed(1));
     setTotalSessions((data || []).length);
+
+    // Fetch all sessions for streak calculation
+    const { data: allSessions } = await supabase
+      .from('sessions')
+      .select('completed_at')
+      .eq('user_id', session.user.id);
+
+    const sessionDates = new Set(
+      (allSessions || []).map(s =>
+        new Date(s.completed_at).toDateString()
+      )
+    );
+
+    let currentStreak = 0;
+
+    let currentDay = new Date();
+    currentDay.setHours(0, 0, 0, 0);
+
+    // If the user hasn't studied today yet,
+    // continue counting from yesterday.
+    if (!sessionDates.has(currentDay.toDateString())) {
+      currentDay.setDate(currentDay.getDate() - 1);
+    }
+
+    while (sessionDates.has(currentDay.toDateString())) {
+      currentStreak++;
+      currentDay.setDate(currentDay.getDate() - 1);
+    }
+    console.log("All sessions:", allSessions);
+    console.log("Streak:", currentStreak);
+    setStreak(currentStreak);
     setLoading(false);
   }
 
@@ -249,17 +280,21 @@ export default function HomeScreen({ navigation }) {
         ))}
       </View>
 
-      {/* Stats */}
-      <View style={styles.statsRow}>
-        <View style={[styles.statCard, { backgroundColor: theme.card }]}>
-          <Text style={[styles.statValue, { color: theme.text }]}>{totalHours}h</Text>
-          <Text style={[styles.statLabel, { color: theme.sub }]}>Study time</Text>
+     {/* Stats */}
+        <View style={styles.statsRow}>
+          <View style={[styles.statCard, { backgroundColor: theme.card }]}>
+            <Text style={[styles.statValue, { color: theme.text }]}>{totalHours}h</Text>
+            <Text style={[styles.statLabel, { color: theme.sub }]}>Study time</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: theme.card }]}>
+            <Text style={[styles.statValue, { color: theme.text }]}>{totalSessions}</Text>
+            <Text style={[styles.statLabel, { color: theme.sub }]}>Sessions</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: theme.card }]}>
+            <Text style={[styles.statValue, { color: theme.text }]}>🔥 {streak}</Text>
+            <Text style={[styles.statLabel, { color: theme.sub }]}>Day Streak</Text>
+          </View>
         </View>
-        <View style={[styles.statCard, { backgroundColor: theme.card }]}>
-          <Text style={[styles.statValue, { color: theme.text }]}>{totalSessions}</Text>
-          <Text style={[styles.statLabel, { color: theme.sub }]}>Sessions</Text>
-        </View>
-      </View>
 
       {/* Chart */}
       {loading ? (
@@ -282,9 +317,9 @@ const styles = StyleSheet.create({
   periodBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   periodBtnActive: { backgroundColor: '#007AFF' },
   periodText: { fontSize: 12, fontWeight: '500' },
-  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
-  statCard: { flex: 1, borderRadius: 12, padding: 16, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  statValue: { fontSize: 28, fontWeight: '700', marginBottom: 4 },
+  statsRow: { flexDirection: 'row', gap: 8, marginBottom: 16, },
+  statCard: { flex: 1, borderRadius: 12, padding: 12, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  statValue: { fontSize: 20, fontWeight: '700', marginBottom: 4 },
   statLabel: { fontSize: 12 },
   chartCard: { borderRadius: 12, padding: 16, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   chartTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
