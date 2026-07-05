@@ -22,6 +22,14 @@ function SpaceCard({ space, onPress, isFav, onToggleFav }) {
         ⭐ {space.avgRating}
       </Text>
     )}
+
+      {space.occupancy && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: space.occupancy === 'busy' ? '#FF3B30' : '#34C759' }} />
+          <Text style={{ color: theme.sub, fontSize: 12 }}>{space.occupancy === 'busy' ? 'Busy' : 'Quiet'} right now</Text>
+        </View>
+      )}
+
       <View style={styles.tags}>
         <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>{space.noise}</Text>
         {space.wifi && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>WiFi</Text>}
@@ -78,32 +86,51 @@ export default function SpacesListScreen({ navigation, getFavourites, toggleFavo
   const [noise, setNoise] = useState('Any');
   const [building, setBuilding] = useState('Any');
 
-  useEffect(() => {
-    async function load() {
-      const { data, error } = await supabase.from('spaces').select('*');
-      if (error) console.error(error);
+  async function load() {
+  const { data, error } = await supabase.from('spaces').select('*');
+  if (error) console.error(error);
 
-      const { data: reviews } = await supabase.from('reviews').select('space_id, rating');
+  const { data: reviews } = await supabase.from('reviews').select('space_id, rating');
 
-      const avgMap = {};
-      for (const r of reviews || []) {
-        if (!avgMap[r.space_id]) avgMap[r.space_id] = { total: 0, count: 0 };
-        avgMap[r.space_id].total += r.rating;
-        avgMap[r.space_id].count += 1;
-      }
+  const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const { data: occupancyData } = await supabase
+    .from('occupancy')
+    .select('space_id, status')
+    .gte('created_at', cutoff);
 
-      const spacesWithRatings = (data || []).map(s => ({
-        ...s,
-        avgRating: avgMap[s.id] ? (avgMap[s.id].total / avgMap[s.id].count).toFixed(1) : null,
-      }));
+  const occMap = {};
+  for (const r of occupancyData || []) {
+    if (!occMap[r.space_id]) occMap[r.space_id] = { busy: 0, quiet: 0 };
+    occMap[r.space_id][r.status]++;
+  }
 
-      setSpaces(spacesWithRatings);
-      const favs = await getFavourites();
-      setFavourites(favs.map((f) => f.id));
-      setLoading(false);
-    }
-        load();
-  }, []);
+  const avgMap = {};
+  for (const r of reviews || []) {
+    if (!avgMap[r.space_id]) avgMap[r.space_id] = { total: 0, count: 0 };
+    avgMap[r.space_id].total += r.rating;
+    avgMap[r.space_id].count += 1;
+  }
+
+  const spacesWithRatings = (data || []).map(s => ({
+    ...s,
+    avgRating: avgMap[s.id] ? (avgMap[s.id].total / avgMap[s.id].count).toFixed(1) : null,
+    occupancy: occMap[s.id]
+      ? (occMap[s.id].busy / (occMap[s.id].busy + occMap[s.id].quiet) > 0.5 ? 'busy' : 'quiet')
+      : null,
+  }));
+
+  setSpaces(spacesWithRatings);
+  const favs = await getFavourites();
+  setFavourites(favs.map((f) => f.id));
+  setLoading(false);
+}
+
+useEffect(() => { load(); }, []);
+
+useEffect(() => {
+  const interval = setInterval(load, 30000);
+  return () => clearInterval(interval);
+}, []);
 
   async function handleToggleFav(space) {
     const isNowFav = await toggleFavourite(space);
