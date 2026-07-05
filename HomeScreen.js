@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Dimensions, TouchableOpacity, ScrollView } from 'react-native';
+import { useState, useEffect} from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, Dimensions, TouchableOpacity, ScrollView, Alert, Image } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from './supabase';
 import { useAuth } from './AuthContext';
 import { useTheme } from './ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FlatList } from 'react-native';
+
 
 const PERIODS = ['Day', 'Weekly', 'Monthly', 'Yearly'];
 const screenWidth = Dimensions.get('window').width - 32;
@@ -170,13 +172,19 @@ function FavouritesList({ navigation, theme }) {
 }
 
 export default function HomeScreen({ navigation }) {
-  const { session } = useAuth();
+  const { session, signOut } = useAuth();
   const { theme } = useTheme();
   const [period, setPeriod] = useState('Weekly');
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalHours, setTotalHours] = useState(0);
   const [totalSessions, setTotalSessions] = useState(0);
+  const [avatarUrl, setAvatarUrl] = useState(null);
+
+  useEffect(() => {
+    supabase.from('profiles').select('avatar_url').eq('id', session.user.id).single()
+      .then(({ data }) => { if (data) setAvatarUrl(data.avatar_url); });
+  }, []);
 
   useEffect(() => {
     fetchSessions();
@@ -205,10 +213,28 @@ export default function HomeScreen({ navigation }) {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.bg }]} contentContainerStyle={{ padding: 16 }}>
-      <Text style={[styles.greeting, { color: theme.text }]}>
-        Hey, {session.user.user_metadata?.full_name?.split(' ')[0] || 'there'} 👋
-      </Text>
+    <ScrollView style={[styles.container, { backgroundColor: theme.bg }]} contentContainerStyle={{ padding: 16, paddingTop: 60 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, marginTop: 8 }}>
+        <Text style={[styles.greeting, { color: theme.text, marginBottom: 0 }]}>
+          Hey, {session.user.user_metadata?.full_name?.split(' ')[0] || 'there'} 👋
+        </Text>
+        <TouchableOpacity onPress={() => {
+          Alert.alert(
+            session.user.user_metadata?.full_name || 'Account',
+            session.user.email,
+            [
+              { text: 'Sign Out', style: 'destructive', onPress: signOut },
+              { text: 'Cancel', style: 'cancel' },
+            ]
+          );
+        }}>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={{ width: 36, height: 36, borderRadius: 18 }} />
+          ) : (
+            <Ionicons name="person-circle-outline" size={36} color={theme.text} />
+          )}
+        </TouchableOpacity>
+      </View>
 
       {/* Period selector */}
       <View style={styles.periodRow}>

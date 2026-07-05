@@ -286,23 +286,21 @@ function MainApp() {
           tabBarInactiveTintColor: theme.sub,
           tabBarIcon: ({ focused, color, size }) => {
             const icons = {
-              Home: focused ? 'home' : 'home-outline',
               Map: focused ? 'map' : 'map-outline',
               Spaces: focused ? 'business' : 'business-outline',
+              Home: focused ? 'home' : 'home-outline',
               Timer: focused ? 'timer' : 'timer-outline',
-              Profile: focused ? 'person' : 'person-outline',
             };
             return <Ionicons name={icons[route.name]} size={size} color={color} />;
           },
         })}
       >
-        <Tab.Screen name="Home">
-          {(props) => <HomeScreen {...props} />}
-        </Tab.Screen>
         <Tab.Screen name="Map" component={MapScreen} />
         <Tab.Screen name="Spaces" component={SpacesScreen} options={{ headerShown: false }} />
+        <Tab.Screen name="Home" options={{headerShown: false}}>
+          {(props) => <HomeScreen {...props} />}
+        </Tab.Screen>
         <Tab.Screen name="Timer" component={TimerScreen} />
-        <Tab.Screen name="Profile" component={ProfileScreen} />
       </Tab.Navigator>
     </NavigationContainer>
   );
