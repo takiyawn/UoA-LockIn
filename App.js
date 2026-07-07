@@ -75,7 +75,8 @@ function SpaceDetailScreen({ route }) {
       .from('reviews')
       .select('*, profiles(full_name)')
       .eq('space_id', space.id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(20);
     if (error) console.error(error);
     else setReviews(data);
     setLoading(false);
@@ -100,6 +101,8 @@ function SpaceDetailScreen({ route }) {
   async function reportOccupancy(status) {
     setReporting(true);
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setReporting(false); return; }
+
     await supabase.from('occupancy').insert({
       space_id: space.id,
       user_id: user.id,
@@ -113,12 +116,14 @@ function SpaceDetailScreen({ route }) {
     if (!comment.trim() || parseInt(rating) === 0) return;
     setSubmitting(true);
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from('reviews').insert({
+    if (!user) { setSubmitting(false); return; }
+    const { error } = await supabase.from('reviews').upsert({
       space_id: space.id,
       rating: parseInt(rating),
       comment: comment.trim(),
       user_id: user.id,
-    });
+    }, { onConflict: 'user_id,space_id' });
+
     if (error) console.error(error);
     else {
       setComment('');

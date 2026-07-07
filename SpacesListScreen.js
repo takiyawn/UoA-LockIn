@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
 import { supabase } from './supabase';
 import { useTheme } from './ThemeContext';
@@ -90,7 +91,7 @@ export default function SpacesListScreen({ navigation, getFavourites, toggleFavo
   const { data, error } = await supabase.from('spaces').select('*');
   if (error) console.error(error);
 
-  const { data: reviews } = await supabase.from('reviews').select('space_id, rating');
+  const { data: ratings } = await supabase.rpc('get_space_ratings');
 
   const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   const { data: occupancyData } = await supabase
@@ -104,16 +105,15 @@ export default function SpacesListScreen({ navigation, getFavourites, toggleFavo
     occMap[r.space_id][r.status]++;
   }
 
+  
   const avgMap = {};
-  for (const r of reviews || []) {
-    if (!avgMap[r.space_id]) avgMap[r.space_id] = { total: 0, count: 0 };
-    avgMap[r.space_id].total += r.rating;
-    avgMap[r.space_id].count += 1;
+  for (const r of ratings || []) {
+    avgMap[r.space_id] = { total: r.avg_rating, count: r.review_count };
   }
 
   const spacesWithRatings = (data || []).map(s => ({
     ...s,
-    avgRating: avgMap[s.id] ? (avgMap[s.id].total / avgMap[s.id].count).toFixed(1) : null,
+    avgRating: avgMap[s.id] ? avgMap[s.id].total : null,
     occupancy: occMap[s.id]
       ? (occMap[s.id].busy / (occMap[s.id].busy + occMap[s.id].quiet) > 0.5 ? 'busy' : 'quiet')
       : null,
@@ -125,28 +125,28 @@ export default function SpacesListScreen({ navigation, getFavourites, toggleFavo
   setLoading(false);
 }
 
-useEffect(() => { load(); }, []);
+useFocusEffect(
+  useCallback(() => {
+    load();
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, [])
+);
 
-useEffect(() => {
-  const interval = setInterval(load, 30000);
-  return () => clearInterval(interval);
-}, []);
-
-  async function handleToggleFav(space) {
-    const isNowFav = await toggleFavourite(space);
+async function handleToggleFav(space) {
+  const isNowFav = await toggleFavourite(space);
     setFavourites((prev) =>
-      isNowFav ? [...prev, space.id] : prev.filter((id) => id !== space.id)
-    );
-  }
+    isNowFav ? [...prev, space.id] : prev.filter((id) => id !== space.id)
+  );
+}
 
-  const filtered = spaces.filter(s => {
-    if (noise !== 'Any' && s.noise !== noise) return false;
-    if (building !== 'Any' && s.building !== building) return false;
-    return true;
-  });
+const filtered = spaces.filter(s => {
+  if (noise !== 'Any' && s.noise !== noise) return false;
+  if (building !== 'Any' && s.building !== building) return false;
+  return true;
+});
 
-  if (loading) return <View style={[styles.center, { backgroundColor: theme.bg }]}><ActivityIndicator /></View>;
-
+if (loading) return <View style={[styles.center, { backgroundColor: theme.bg }]}><ActivityIndicator /></View>;
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
       <View style={[styles.filterBar, { borderBottomColor: theme.border }]}>
