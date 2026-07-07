@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { Animated, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 const WIDTH = 88;
 const HEIGHT = 36;
@@ -31,7 +32,15 @@ export default function ThemeSwitch({ value, onValueChange }) {
   const moonOpacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
 
   return (
-    <TouchableOpacity activeOpacity={0.8} onPress={() => onValueChange(!value)}>
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onValueChange(!value); }}
+      accessible={true}
+      accessibilityRole="switch"
+      accessibilityLabel="Dark mode"
+      accessibilityState={{ checked: value }}
+      accessibilityHint="Toggles between light and dark theme"
+    >
       <Animated.View style={[styles.track, { backgroundColor: trackColor, borderColor: value ? '#555' : '#999' }]}>
         <Animated.Text style={[styles.icon, styles.rightIcon, { opacity: sunOpacity, color: '#000' }]}>☀️</Animated.Text>
         <Animated.Text style={[styles.icon, styles.leftIcon, { opacity: moonOpacity, color: '#fff' }]}>🌙</Animated.Text>

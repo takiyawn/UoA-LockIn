@@ -1,12 +1,13 @@
-import { useEffect, useState, useCallback } from 'react';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { NavigationContainer, DefaultTheme, DarkTheme, useFocusEffect } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useFocusEffect } from '@react-navigation/native';
-import { Text, View, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Button, ScrollView } from 'react-native';
-import MapView, { Marker, Callout } from 'react-native-maps';
+import { Text, View, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Button, ScrollView, Linking } from 'react-native';
+import { WebView } from 'react-native-webview';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
+import * as Haptics from 'expo-haptics';
 import { AuthProvider, useAuth } from './AuthContext';
 import { ThemeProvider, useTheme } from './ThemeContext';
 import LoginScreen from './LoginScreen';
@@ -24,6 +25,7 @@ export async function getFavourites() {
 }
 
 export async function toggleFavourite(space) {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   const favs = await getFavourites();
   const exists = favs.find((f) => f.id === space.id);
   const updated = exists ? favs.filter((f) => f.id !== space.id) : [...favs, space];
@@ -54,7 +56,7 @@ function SpaceCard({ space, onPress, isFav, onToggleFav }) {
   );
 }
 
-function SpaceDetailScreen({ route }) {
+function SpaceDetailScreen({ route, navigation }) {
   const { theme } = useTheme();
   const { space } = route.params;
   const [reviews, setReviews] = useState([]);
@@ -102,7 +104,6 @@ function SpaceDetailScreen({ route }) {
     setReporting(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setReporting(false); return; }
-
     await supabase.from('occupancy').insert({
       space_id: space.id,
       user_id: user.id,
@@ -123,7 +124,6 @@ function SpaceDetailScreen({ route }) {
       comment: comment.trim(),
       user_id: user.id,
     }, { onConflict: 'user_id,space_id' });
-
     if (error) console.error(error);
     else {
       setComment('');
@@ -147,7 +147,7 @@ function SpaceDetailScreen({ route }) {
         </TouchableOpacity>
       </View>
       <Text style={[styles.cardSub, { color: theme.sub }]}>{space.building}</Text>
-      <View style={styles.tags}>
+            <View style={styles.tags}>
         <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>{space.noise}</Text>
         {space.wifi && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>WiFi</Text>}
         {space.power && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>Power</Text>}
@@ -234,44 +234,20 @@ function SpacesScreen() {
   );
 }
 
-function MapScreen({ navigation }) {
-  const [spaces, setSpaces] = useState([]);
-
-  useEffect(() => {
-    async function fetchSpaces() {
-      const { data, error } = await supabase.from('spaces').select('*');
-      if (error) console.error(error);
-      else setSpaces(data);
-    }
-    fetchSpaces();
-  }, []);
-
+function MapScreen() {
   return (
-    <MapView
-      style={{ flex: 1 }}
-      initialRegion={{
-        latitude: -36.8523,
-        longitude: 174.7691,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }}
-    >
-      {spaces.map((space) => (
-        <Marker
-          key={space.id}
-          coordinate={{ latitude: space.lat, longitude: space.lng }}
-          title={space.name}
-        >
-          <Callout onPress={() => navigation.navigate('Spaces', { screen: 'SpaceDetail', params: { space } })}>
-            <View style={{ padding: 8, maxWidth: 200 }}>
-              <Text style={{ fontWeight: '600' }}>{space.name}</Text>
-              <Text style={{ color: '#666', fontSize: 12 }}>{space.building}</Text>
-              <Text style={{ color: '#007AFF', fontSize: 12, marginTop: 4 }}>Tap to view →</Text>
-            </View>
-          </Callout>
-        </Marker>
-      ))}
-    </MapView>
+    <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+      <WebView
+        source={{ uri: 'https://maps.auckland.ac.nz' }}
+        style={{ flex: 1 }}
+        startInLoadingState
+        renderLoading={() => (
+          <View style={styles.center}>
+            <ActivityIndicator />
+          </View>
+        )}
+      />
+    </SafeAreaView>
   );
 }
 

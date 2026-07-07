@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
 import { supabase } from './supabase';
 import { useTheme } from './ThemeContext';
+import Skeleton from './Skeleton';
 
 const NOISE_LEVELS = ['Any', 'Silent', 'Quiet', 'Moderate', 'Loud'];
 const BUILDINGS = ['Any', 'City Campus', 'Engineering', 'Grafton Campus', 'Owen G Glenn', 'Science Campus'];
@@ -86,6 +87,8 @@ export default function SpacesListScreen({ navigation, getFavourites, toggleFavo
   const [favourites, setFavourites] = useState([]);
   const [noise, setNoise] = useState('Any');
   const [building, setBuilding] = useState('Any');
+  const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState('');
 
   async function load() {
   const { data, error } = await supabase.from('spaces').select('*');
@@ -105,7 +108,6 @@ export default function SpacesListScreen({ navigation, getFavourites, toggleFavo
     occMap[r.space_id][r.status]++;
   }
 
-  
   const avgMap = {};
   for (const r of ratings || []) {
     avgMap[r.space_id] = { total: r.avg_rating, count: r.review_count };
@@ -133,25 +135,60 @@ useFocusEffect(
   }, [])
 );
 
-async function handleToggleFav(space) {
-  const isNowFav = await toggleFavourite(space);
+  async function handleToggleFav(space) {
+    const isNowFav = await toggleFavourite(space);
     setFavourites((prev) =>
-    isNowFav ? [...prev, space.id] : prev.filter((id) => id !== space.id)
-  );
-}
+      isNowFav ? [...prev, space.id] : prev.filter((id) => id !== space.id)
+    );
+  }
 
-const filtered = spaces.filter(s => {
-  if (noise !== 'Any' && s.noise !== noise) return false;
-  if (building !== 'Any' && s.building !== building) return false;
-  return true;
-});
+  async function handleRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
 
-if (loading) return <View style={[styles.center, { backgroundColor: theme.bg }]}><ActivityIndicator /></View>;
+  const filtered = spaces.filter(s => {
+    if (noise !== 'Any' && s.noise !== noise) return false;
+    if (building !== 'Any' && s.building !== building) return false;
+    if (search.trim() && !s.name.toLowerCase().includes(search.trim().toLowerCase())) return false;
+    return true;
+  });
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.bg, padding: 16 }}>
+        {[1, 2, 3, 4].map(i => (
+          <Skeleton key={i} height={100} borderRadius={12} style={{ marginBottom: 12 }} />
+        ))}
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+        <TextInput
+          style={[styles.searchInput, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
+          placeholder="Search spaces..."
+          placeholderTextColor={theme.sub}
+          value={search}
+          onChangeText={setSearch}
+        />
+      </View>
       <View style={[styles.filterBar, { borderBottomColor: theme.border }]}>
         <Dropdown label="Noise Level" value={noise} options={NOISE_LEVELS} onChange={setNoise} theme={theme} />
         <Dropdown label="Building" value={building} options={BUILDINGS} onChange={setBuilding} theme={theme} />
+        {(noise !== 'Any' || building !== 'Any') && (
+          <TouchableOpacity
+            onPress={() => { setNoise('Any'); setBuilding('Any'); }}
+            style={[styles.clearBadge, { backgroundColor: theme.tag }]}
+          >
+            <Text style={{ color: '#007AFF', fontSize: 12, fontWeight: '600' }}>
+              {[noise !== 'Any', building !== 'Any'].filter(Boolean).length} ✕
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <FlatList
@@ -166,6 +203,8 @@ if (loading) return <View style={[styles.center, { backgroundColor: theme.bg }]}
           />
         )}
         contentContainerStyle={styles.list}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
         ListEmptyComponent={<Text style={[styles.emptyText, { color: theme.sub }]}>No spaces match your filters.</Text>}
       />
     </View>
@@ -180,6 +219,8 @@ const styles = StyleSheet.create({
   tags: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, fontSize: 12 },
   filterBar: { flexDirection: 'row', gap: 10, padding: 12, borderBottomWidth: 1 },
+  searchInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14 },
+  clearBadge: { paddingHorizontal: 12, justifyContent: 'center', borderRadius: 10 },
   dropdown: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
   dropdownText: { fontSize: 13, fontWeight: '500', flex: 1, marginRight: 4 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 },

@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, ScrollView } from 'react-native';
 import { supabase } from './supabase';
+import * as Haptics from 'expo-haptics';
 import { useAuth } from './AuthContext';
 import { useTheme } from './ThemeContext';
+import ProgressRing from './ProgressRing';
 
 const PERIODS = ['Weekly', 'Monthly', 'Yearly', 'All Time'];
 
@@ -66,6 +68,7 @@ function TimerTab() {
   }
 
   async function handleComplete() {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     if (!isBreak) {
       const duration = parseInt(workMinutes) || 25;
       await supabase.from('sessions').insert({
@@ -84,6 +87,7 @@ function TimerTab() {
   }
 
   function handleStartStop() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setRunning(r => {
       if (r) endTimeRef.current = null;
       return !r;
@@ -91,6 +95,7 @@ function TimerTab() {
   }
 
   function handleReset() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setRunning(false);
     endTimeRef.current = null;
     setIsBreak(false);
@@ -98,14 +103,33 @@ function TimerTab() {
   }
 
   function handleWorkChange(val) {
-    setWorkMinutes(val);
-    if (!running) setSecondsLeft((parseInt(val) || 25) * 60);
+    const num = parseInt(val);
+    const clamped = isNaN(num) ? val : Math.max(1, Math.min(180, num)).toString();
+    setWorkMinutes(clamped);
+    if (!running) setSecondsLeft((parseInt(clamped) || 25) * 60);
+  }
+
+  function handleBreakChange(val) {
+    const num = parseInt(val);
+    const clamped = isNaN(num) ? val : Math.max(1, Math.min(60, num)).toString();
+    setBreakMinutes(clamped);
   }
 
   return (
     <ScrollView contentContainerStyle={[styles.center, { backgroundColor: theme.bg }]}>
-      <Text style={[styles.modeLabel, { color: theme.sub }]}>{isBreak ? 'Break' : 'Focus'}</Text>
-      <Text style={[styles.timer, { color: theme.text }]}>{formatTime(secondsLeft)}</Text>
+      <View style={{ marginBottom: 8 }}>
+        <ProgressRing
+          progress={(isBreak ? breakSecs : workSecs) > 0 ? secondsLeft / (isBreak ? breakSecs : workSecs) : 0}
+          color={isBreak ? '#34C759' : '#007AFF'}
+          trackColor={theme.tag}
+        />
+        <View style={StyleSheet.absoluteFillObject}>
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={[styles.modeLabel, { color: theme.sub }]}>{isBreak ? 'Break' : 'Focus'}</Text>
+            <Text style={[styles.timer, { color: theme.text }]}>{formatTime(secondsLeft)}</Text>
+          </View>
+        </View>
+      </View>
       <Text style={[styles.sub, { color: theme.sub }]}>Sessions today: {sessionsToday}</Text>
 
       <View style={styles.row}>
@@ -125,7 +149,7 @@ function TimerTab() {
           <TextInput
             style={[styles.input, { backgroundColor: theme.input, borderColor: theme.border, color: theme.text }]}
             value={breakMinutes}
-            onChangeText={setBreakMinutes}
+            onChangeText={handleBreakChange}
             keyboardType="numeric"
             editable={!running}
             placeholderTextColor={theme.sub}
@@ -158,32 +182,24 @@ function LeaderboardTab() {
 
   async function fetchLeaderboard() {
     setLoading(true);
-    let query = supabase
-      .from('sessions')
-      .select('user_id, duration_minutes, completed_at');
-
     const now = new Date();
+    let since;
     if (period === 'Weekly') {
-      query = query.gte('completed_at', new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString());
+      since = new Date(now - 7 * 24 * 60 * 60 * 1000);
     } else if (period === 'Monthly') {
-      query = query.gte('completed_at', new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()).toISOString());
+      since = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
     } else if (period === 'Yearly') {
-      query = query.gte('completed_at', new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString());
+      since = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+    } else {
+      since = new Date(0);
     }
 
-    const { data: sessions, error } = await query;
+    const { data: rowsRaw, error } = await supabase.rpc('get_leaderboard', { since: since.toISOString() });
     if (error) { console.error(error); setLoading(false); return; }
 
-    const map = {};
-    for (const row of sessions) {
-      if (!map[row.user_id]) map[row.user_id] = { user_id: row.user_id, total: 0, count: 0 };
-      map[row.user_id].total += row.duration_minutes;
-      map[row.user_id].count += 1;
-    }
+    if (!rowsRaw || rowsRaw.length === 0) { setData([]); setLoading(false); return; }
 
-    const userIds = Object.keys(map);
-    if (userIds.length === 0) { setData([]); setLoading(false); return; }
-
+    const userIds = rowsRaw.map(r => r.user_id);
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, full_name')
@@ -192,10 +208,7 @@ function LeaderboardTab() {
     const profileMap = {};
     for (const p of profiles || []) profileMap[p.id] = p;
 
-    const rows = Object.values(map)
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 20)
-      .map(row => ({ ...row, full_name: profileMap[row.user_id]?.full_name || 'Unknown' }));
+    const rows = rowsRaw.map(row => ({ ...row, full_name: profileMap[row.user_id]?.full_name || 'Unknown' }));
 
     setData(rows);
     setLoading(false);
@@ -264,7 +277,7 @@ export default function TimerScreen() {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   modeLabel: { fontSize: 14, fontWeight: '600', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 },
-  timer: { fontSize: 72, fontWeight: '700', fontVariant: ['tabular-nums'], marginBottom: 8 },
+  timer: { fontSize: 48, fontWeight: '700', fontVariant: ['tabular-nums'], marginBottom: 0 },
   sub: { fontSize: 13, marginBottom: 24 },
   row: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   inputGroup: { alignItems: 'center' },
