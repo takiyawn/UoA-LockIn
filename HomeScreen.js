@@ -4,12 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from './supabase';
 import { useAuth } from './AuthContext';
 import { useTheme } from './ThemeContext';
+import ThemeSwitch from './ThemeSwitch';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FlatList } from 'react-native';
-
+ 
 const PERIODS = ['Day', 'Weekly', 'Monthly', 'Yearly'];
 const screenWidth = Dimensions.get('window').width - 32;
-
+ 
 function getDateRange(period) {
   const now = new Date();
   switch (period) {
@@ -27,12 +28,12 @@ function getDateRange(period) {
       return { start: new Date(now.getFullYear(), 0, 1), slots: 12, label: (i) => ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][i] };
   }
 }
-
+ 
 function buildChartData(sessions, period) {
   const now = new Date();
   const { slots, label } = getDateRange(period);
   const data = new Array(slots).fill(0);
-
+ 
   for (const s of sessions) {
     const d = new Date(s.completed_at);
     let idx;
@@ -49,21 +50,21 @@ function buildChartData(sessions, period) {
     }
     if (idx >= 0 && idx < slots) data[idx] += s.duration_minutes / 60;
   }
-
+ 
   // For monthly, only show every 5th label to avoid clutter
   const labels = Array.from({ length: slots }, (_, i) => {
     if (period === 'Monthly' && (i + 1) % 5 !== 0 && i !== 0) return '';
     return label(i);
   });
-
+ 
   return { labels, datasets: [{ data: data.map(v => parseFloat(v.toFixed(2))) }] };
 }
-
+ 
 function CustomBarChart({ data, theme }) {
   const max = Math.max(...data.datasets[0].data, 0.01);
   const bars = data.datasets[0].data;
   const labels = data.labels;
-
+ 
   return (
     <View style={{ height: 160, flexDirection: 'row', alignItems: 'flex-end', gap: 4 }}>
       {bars.map((val, i) => (
@@ -83,22 +84,22 @@ function CustomBarChart({ data, theme }) {
     </View>
   );
 }
-
+ 
 function FavouritesList({ navigation, theme }) {
   const [favourites, setFavourites] = useState([]);
-
+ 
   useEffect(() => {
     load();
     const unsubscribe = navigation.addListener('focus', load);
     return unsubscribe;
   }, [navigation]);
-
+ 
   async function load() {
     const json = await AsyncStorage.getItem('favourites');
     const favs = json ? JSON.parse(json) : [];
-
+ 
     if (favs.length === 0) { setFavourites([]); return; }
-
+ 
     // Fetch occupancy for favourited spaces
     const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     const { data: occupancyData } = await supabase
@@ -106,23 +107,23 @@ function FavouritesList({ navigation, theme }) {
       .select('space_id, status')
       .in('space_id', favs.map(f => f.id))
       .gte('created_at', cutoff);
-
+ 
     const occMap = {};
     for (const r of occupancyData || []) {
       if (!occMap[r.space_id]) occMap[r.space_id] = { busy: 0, quiet: 0 };
       occMap[r.space_id][r.status]++;
     }
-
+ 
     const favsWithOccupancy = favs.map(s => ({
       ...s,
       occupancy: occMap[s.id]
         ? (occMap[s.id].busy / (occMap[s.id].busy + occMap[s.id].quiet) > 0.5 ? 'busy' : 'quiet')
         : null,
     }));
-
+ 
     setFavourites(favsWithOccupancy);
   }
-
+ 
   async function handleUnfavourite(space) {
     const json = await AsyncStorage.getItem('favourites');
     const favs = json ? JSON.parse(json) : [];
@@ -130,7 +131,7 @@ function FavouritesList({ navigation, theme }) {
     await AsyncStorage.setItem('favourites', JSON.stringify(updated));
     load();
   }
-
+ 
   return (
     <View style={{ marginTop: 24 }}>
       <Text style={{ fontSize: 16, fontWeight: '600', color: theme.text, marginBottom: 12 }}>Favourite Spots</Text>
@@ -169,7 +170,7 @@ function FavouritesList({ navigation, theme }) {
     </View>
   );
 }
-
+ 
 export default function HomeScreen({ navigation }) {
   const { session, signOut } = useAuth();
   const { theme, toggle } = useTheme();
@@ -180,16 +181,16 @@ export default function HomeScreen({ navigation }) {
   const [totalSessions, setTotalSessions] = useState(0);
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [streak, setStreak] = useState(0);
-
+ 
   useEffect(() => {
     supabase.from('profiles').select('avatar_url').eq('id', session.user.id).single()
       .then(({ data }) => { if (data) setAvatarUrl(data.avatar_url); });
   }, []);
-
+ 
   useEffect(() => {
     fetchSessions();
   }, [period]);
-
+ 
   async function fetchSessions() {
     setLoading(true);
     const { start } = getDateRange(period);
@@ -198,36 +199,36 @@ export default function HomeScreen({ navigation }) {
       .select('duration_minutes, completed_at')
       .eq('user_id', session.user.id)
       .gte('completed_at', start.toISOString());
-
+ 
     if (error) { console.error(error); setLoading(false); return; }
     setSessions(data || []);
     const total = (data || []).reduce((sum, s) => sum + s.duration_minutes, 0);
     setTotalHours((total / 60).toFixed(1));
     setTotalSessions((data || []).length);
-
+ 
     // Fetch all sessions for streak calculation
     const { data: allSessions } = await supabase
       .from('sessions')
       .select('completed_at')
       .eq('user_id', session.user.id);
-
+ 
     const sessionDates = new Set(
       (allSessions || []).map(s =>
         new Date(s.completed_at).toDateString()
       )
     );
-
+ 
     let currentStreak = 0;
-
+ 
     let currentDay = new Date();
     currentDay.setHours(0, 0, 0, 0);
-
+ 
     // If the user hasn't studied today yet,
     // continue counting from yesterday.
     if (!sessionDates.has(currentDay.toDateString())) {
       currentDay.setDate(currentDay.getDate() - 1);
     }
-
+ 
     while (sessionDates.has(currentDay.toDateString())) {
       currentStreak++;
       currentDay.setDate(currentDay.getDate() - 1);
@@ -237,12 +238,12 @@ export default function HomeScreen({ navigation }) {
     setStreak(currentStreak);
     setLoading(false);
   }
-
+ 
   const chartData = sessions.length > 0 ? buildChartData(sessions, period) : {
     labels: ['No data'],
     datasets: [{ data: [0] }],
   };
-
+ 
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.bg }]} contentContainerStyle={{ padding: 16, paddingTop: 60 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, marginTop: 8 }}>
@@ -250,9 +251,7 @@ export default function HomeScreen({ navigation }) {
           Hey, {session.user.user_metadata?.full_name?.split(' ')[0] || 'there'} 👋
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <TouchableOpacity onPress={toggle}>
-            <Ionicons name={theme.dark ? 'sunny-outline' : 'moon-outline'} size={26} color={theme.text} />
-          </TouchableOpacity>
+          <ThemeSwitch value={theme.dark} onValueChange={toggle} />
           <TouchableOpacity onPress={() => {
             Alert.alert(
               session.user.user_metadata?.full_name || 'Account',
@@ -271,7 +270,7 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </View>
-
+ 
       {/* Period selector */}
       <View style={styles.periodRow}>
         {PERIODS.map(p => (
@@ -284,7 +283,7 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         ))}
       </View>
-
+ 
      {/* Stats */}
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: theme.card }]}>
@@ -300,7 +299,7 @@ export default function HomeScreen({ navigation }) {
             <Text style={[styles.statLabel, { color: theme.sub }]}>Day Streak</Text>
           </View>
         </View>
-
+ 
       {/* Chart */}
       {loading ? (
         <View style={styles.center}><ActivityIndicator /></View>
@@ -314,7 +313,7 @@ export default function HomeScreen({ navigation }) {
     </ScrollView>
   );
 }
-
+ 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   greeting: { fontSize: 24, fontWeight: '700', marginBottom: 20, marginTop: 8 },

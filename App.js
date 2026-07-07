@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { Text, View, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Button, ScrollView } from 'react-native';
 import MapView, { Marker, Callout } from 'react-native-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -10,7 +11,6 @@ import { AuthProvider, useAuth } from './AuthContext';
 import { ThemeProvider, useTheme } from './ThemeContext';
 import LoginScreen from './LoginScreen';
 import TimerScreen from './TimerScreen';
-import ProfileScreen from './ProfileScreen';
 import SpacesListScreen from './SpacesListScreen';
 import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from './HomeScreen';

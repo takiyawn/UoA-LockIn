@@ -49,17 +49,17 @@ export function AuthProvider({ children }) {
       throw new Error('Sign in failed. Only @aucklanduni.ac.nz accounts are allowed.');
     }
 
+    const payload = JSON.parse(atob(access_token.split('.')[1]));
+    const email = payload.email ?? '';
+    if (!email.endsWith(`@${ALLOWED_DOMAIN}`)) {
+      throw new Error(`Only @${ALLOWED_DOMAIN} accounts are allowed.`);
+    }
+
     const { data: sessionData, error: setError } = await supabase.auth.setSession({
       access_token,
       refresh_token,
     });
     if (setError) throw setError;
-
-    const email = sessionData.session?.user?.email ?? '';
-    if (!email.endsWith(`@${ALLOWED_DOMAIN}`)) {
-      await supabase.auth.signOut();
-      throw new Error(`Only @${ALLOWED_DOMAIN} accounts are allowed.`);
-    }
 
     return { cancelled: false };
   }

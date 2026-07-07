@@ -29,19 +29,25 @@ function TimerTab() {
     fetchTodaySessions();
   }, []);
 
+  const endTimeRef = useRef(null);
+
   useEffect(() => {
     if (running) {
+      if (!endTimeRef.current) {
+        endTimeRef.current = Date.now() + secondsLeft * 1000;
+      }
       intervalRef.current = setInterval(() => {
-        setSecondsLeft(prev => {
-          if (prev <= 1) {
-            clearInterval(intervalRef.current);
-            setRunning(false);
-            handleComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+        const remaining = Math.round((endTimeRef.current - Date.now()) / 1000);
+        if (remaining <= 0) {
+          clearInterval(intervalRef.current);
+          setRunning(false);
+          setSecondsLeft(0);
+          endTimeRef.current = null;
+          handleComplete();
+        } else {
+          setSecondsLeft(remaining);
+        }
+      }, 250);
     } else {
       clearInterval(intervalRef.current);
     }
@@ -78,11 +84,15 @@ function TimerTab() {
   }
 
   function handleStartStop() {
-    setRunning(r => !r);
+    setRunning(r => {
+      if (r) endTimeRef.current = null;
+      return !r;
+    });
   }
 
   function handleReset() {
     setRunning(false);
+    endTimeRef.current = null;
     setIsBreak(false);
     setSecondsLeft(workSecs);
   }
