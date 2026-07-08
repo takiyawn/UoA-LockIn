@@ -16,7 +16,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.takiyawn.uoastudyspaces",
       "config": {
-        "googleMapsApiKey": "REDACTED"
+        "googleMapsApiKey": "AIzaSyBYCuPovdBX6c8F96k8XZ5p5Iw4B5CBh5g"
       }
     },
     "android": {
@@ -26,7 +26,7 @@
       },
       "config": {
         "googleMaps": {
-          "apiKey": "REDACTED"
+          "apiKey": "AIzaSyBYCuPovdBX6c8F96k8XZ5p5Iw4B5CBh5g"
         }
       },
       "package": "com.takiyawn.uoastudyspaces"
