@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { View, Text, Button, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useAuth } from './AuthContext';
+import { useTheme } from './ThemeContext';
+import GClockMark from './GClockMark';
 
 export default function LoginScreen() {
   const { signInWithGoogle } = useAuth();
+  const { theme } = useTheme();
   const [busy, setBusy] = useState(false);
 
   async function handlePress() {
@@ -21,16 +24,46 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.center}>
-      <Text style={styles.title}>UoA Study Spaces</Text>
-      <Text style={styles.sub}>Sign in with your @aucklanduni.ac.nz account</Text>
-      {busy ? <ActivityIndicator /> : <Button title="Sign in with Google" onPress={handlePress} />}
+    <View style={[styles.center, { backgroundColor: theme.bg }]}>
+      <View style={styles.mark}>
+        <GClockMark size={88} color="#007AFF" />
+      </View>
+
+      <Text style={[styles.title, { color: theme.text }]}>UoA Grind</Text>
+      <Text style={[styles.sub, { color: theme.sub }]}>Track your study time. Find your spot.</Text>
+
+      <Text style={[styles.domainNote, { color: theme.sub }]}>
+        Sign in with your @aucklanduni.ac.nz account
+      </Text>
+
+      {busy ? (
+        <ActivityIndicator color="#007AFF" style={{ marginTop: 8 }} />
+      ) : (
+        <TouchableOpacity
+          style={[styles.googleBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
+          onPress={handlePress}
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.googleBtnText, { color: theme.text }]}>Sign in with Google</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: 8 },
-  sub: { fontSize: 13, color: '#666', marginBottom: 24, textAlign: 'center' },
+  mark: { marginBottom: 24 },
+  title: { fontSize: 28, fontWeight: '800', marginBottom: 6, letterSpacing: -0.5 },
+  sub: { fontSize: 14, marginBottom: 28, textAlign: 'center' },
+  domainNote: { fontSize: 12, marginBottom: 16, textAlign: 'center' },
+  googleBtn: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    minWidth: 240,
+    alignItems: 'center',
+  },
+  googleBtnText: { fontSize: 15, fontWeight: '600' },
 });

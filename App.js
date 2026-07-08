@@ -10,6 +10,7 @@ import { supabase } from './supabase';
 import * as Haptics from 'expo-haptics';
 import { AuthProvider, useAuth } from './AuthContext';
 import { ThemeProvider, useTheme } from './ThemeContext';
+import ErrorBoundary from './ErrorBoundary';
 import LoginScreen from './LoginScreen';
 import TimerScreen from './TimerScreen';
 import SpacesListScreen from './SpacesListScreen';
@@ -104,11 +105,16 @@ function SpaceDetailScreen({ route, navigation }) {
     setReporting(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setReporting(false); return; }
-    await supabase.from('occupancy').insert({
+    const { error } = await supabase.from('occupancy').insert({
       space_id: space.id,
       user_id: user.id,
       status,
     });
+    if (error) {
+      Alert.alert('Slow down', 'You can only report once every 5 minutes per space.');
+      setReporting(false);
+      return;
+    }
     fetchOccupancy();
     setReporting(false);
   }
@@ -289,11 +295,13 @@ function MainApp() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <MainApp />
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <MainApp />
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 
