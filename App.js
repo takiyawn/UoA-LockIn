@@ -16,6 +16,21 @@ import TimerScreen from './TimerScreen';
 import SpacesListScreen from './SpacesListScreen';
 import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from './HomeScreen';
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: 'https://5f53b3cb7822b0eb990e90bfd3389df7@o4511702163062784.ingest.us.sentry.io/4511702163259392',
+
+  // Adds more context data to events (IP address, cookies, user, etc.)
+  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
+  sendDefaultPii: true,
+
+  // Enable Logs
+  enableLogs: false,
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // spotlight: __DEV__,
+});
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -293,7 +308,7 @@ function MainApp() {
   );
 }
 
-export default function App() {
+export default Sentry.wrap(function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
@@ -303,7 +318,7 @@ export default function App() {
       </ThemeProvider>
     </ErrorBoundary>
   );
-}
+});
 
 const styles = StyleSheet.create({
   list: { padding: 16 },

@@ -290,7 +290,7 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </View>
-
+      
       {/* Period selector */}
       <View style={styles.periodRow}>
         {PERIODS.map(p => (
