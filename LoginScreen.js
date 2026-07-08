@@ -29,7 +29,7 @@ export default function LoginScreen() {
         <GClockMark size={88} color="#007AFF" />
       </View>
 
-      <Text style={[styles.title, { color: theme.text }]}>UoA Grind</Text>
+      <Text style={[styles.title, { color: theme.text }]}>UoA LockIn</Text>
       <Text style={[styles.sub, { color: theme.sub }]}>Track your study time. Find your spot.</Text>
 
       <Text style={[styles.domainNote, { color: theme.sub }]}>

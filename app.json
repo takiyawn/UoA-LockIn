@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "UoA Grind",
-    "slug": "uoa-grind",
+    "name": "UoA LockIn",
+    "slug": "uoa-lockin",
     "scheme": "uoastudyspaces",
     "version": "1.0.0",
     "orientation": "portrait",
