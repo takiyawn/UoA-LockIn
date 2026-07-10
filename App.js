@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme, useFocusEffect } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Text, View, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Button, ScrollView, Linking } from 'react-native';
+import { Text, Alert, View, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Button, ScrollView, Linking } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -81,12 +81,31 @@ function SpaceDetailScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isFav, setIsFav] = useState(false);
+  const [buddyRequests, setBuddyRequests] = useState([]);
+  const [courseCode, setCourseCode] = useState('');
+  const [postingBuddy, setPostingBuddy] = useState(false);
+  const [myBuddyRequest, setMyBuddyRequest] = useState(null);
 
   useEffect(() => {
     fetchReviews();
     fetchOccupancy();
+    fetchBuddyRequests();
     getFavourites().then((favs) => setIsFav(!!favs.find((f) => f.id === space.id)));
   }, []);
+
+  async function fetchBuddyRequests() {
+    const { data, error } = await supabase
+      .from('buddy_requests')
+      .select('*, profiles(full_name)')
+      .eq('space_id', space.id)
+      .order('created_at', { ascending: false });
+    setBuddyRequests(data || []);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      setMyBuddyRequest((data || []).find(r => r.user_id === user.id) || null);
+    }
+  }
 
   async function fetchReviews() {
     const { data, error } = await supabase
@@ -100,11 +119,37 @@ function SpaceDetailScreen({ route, navigation }) {
     setLoading(false);
   }
 
+  async function postBuddyRequest() {
+    if (!courseCode.trim()) return;
+    setPostingBuddy(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setPostingBuddy(false); return; }
+
+    const { error } = await supabase.from('buddy_requests').upsert({
+      space_id: space.id,
+      user_id: user.id,
+      course_code: courseCode.trim().toUpperCase(),
+    }, { onConflict: 'user_id,space_id' });
+
+    if (!error) {
+      setCourseCode('');
+      fetchBuddyRequests();
+    }
+    setPostingBuddy(false);
+  }
+
+  async function cancelBuddyRequest() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from('buddy_requests').delete().eq('user_id', user.id).eq('space_id', space.id);
+    fetchBuddyRequests();
+  }
+
   const [occupancy, setOccupancy] = useState(null);
   const [reporting, setReporting] = useState(false);
 
   async function fetchOccupancy() {
-    const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const cutoff = new Date(Date.now() - 24 * 60 * 1000).toISOString();
     const { data } = await supabase
       .from('occupancy')
       .select('status')
@@ -200,6 +245,38 @@ function SpaceDetailScreen({ route, navigation }) {
           <Text style={{ color: '#fff', fontWeight: '600' }}>🟢 It's quiet</Text>
         </TouchableOpacity>
       </View>
+
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Study Buddies</Text>
+
+      {buddyRequests.length === 0 ? (
+        <Text style={[styles.cardSub, { color: theme.sub }]}>No one's looking for a study buddy here right now.</Text>
+      ) : (
+        buddyRequests.map(r => (
+          <View key={r.id} style={{ backgroundColor: theme.card, borderRadius: 10, padding: 12, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={{ color: theme.text, fontWeight: '600' }}>{r.profiles?.full_name || 'Someone'}</Text>
+            <Text style={{ color: theme.sub }}>{r.course_code}</Text>
+          </View>
+        ))
+      )}
+
+      {myBuddyRequest ? (
+        <TouchableOpacity style={{ backgroundColor: theme.tag, borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 8 }} onPress={cancelBuddyRequest}>
+          <Text style={{ color: theme.text, fontWeight: '600' }}>Cancel my buddy request</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+          <TextInput
+            style={[styles.input, { flex: 1, backgroundColor: theme.input, borderColor: theme.border, color: theme.text }]}
+            placeholder="Course code (e.g. COMPSCI 120)"
+            placeholderTextColor={theme.sub}
+            value={courseCode}
+            onChangeText={setCourseCode}
+          />
+          <TouchableOpacity style={{ backgroundColor: '#007AFF', borderRadius: 10, paddingHorizontal: 16, justifyContent: 'center' }} onPress={postBuddyRequest} disabled={postingBuddy}>
+            <Text style={{ color: '#fff', fontWeight: '600' }}>{postingBuddy ? '...' : 'Post'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Leave a Review</Text>
       <TextInput
