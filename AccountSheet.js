@@ -12,7 +12,7 @@ export default function AccountSheet({ visible, onClose, name, email, onSignOut 
           <Text style={[styles.email, { color: theme.sub }]}>{email}</Text>
 
           <TouchableOpacity
-            style={[styles.signOutBtn]}
+            style={[styles.signOutBtn, { backgroundColor: theme.red }]}
             onPress={() => { onClose(); onSignOut(); }}
           >
             <Text style={styles.signOutText}>Sign Out</Text>
@@ -30,12 +30,12 @@ export default function AccountSheet({ visible, onClose, name, email, onSignOut 
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(15,12,30,0.45)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: 40,
   },
@@ -51,19 +51,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   signOutBtn: {
-    backgroundColor: '#FF3B30',
-    borderRadius: 12,
+    borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
     marginBottom: 10,
   },
   signOutText: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '700',
     fontSize: 16,
   },
   cancelBtn: {
-    borderRadius: 12,
+    borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
   },

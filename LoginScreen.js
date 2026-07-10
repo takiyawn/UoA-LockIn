@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } fr
 import { useAuth } from './AuthContext';
 import { useTheme } from './ThemeContext';
 import GClockMark from './GClockMark';
+import { FONTS } from './fonts';
 
 export default function LoginScreen() {
   const { signInWithGoogle } = useAuth();
@@ -25,8 +26,8 @@ export default function LoginScreen() {
 
   return (
     <View style={[styles.center, { backgroundColor: theme.bg }]}>
-      <View style={styles.mark}>
-        <GClockMark size={88} color="#007AFF" />
+      <View style={[styles.markWrap, { backgroundColor: theme.card }]}>
+        <GClockMark size={64} color={theme.accent} />
       </View>
 
       <Text style={[styles.title, { color: theme.text }]}>UoA LockIn</Text>
@@ -37,14 +38,14 @@ export default function LoginScreen() {
       </Text>
 
       {busy ? (
-        <ActivityIndicator color="#007AFF" style={{ marginTop: 8 }} />
+        <ActivityIndicator color={theme.accent} style={{ marginTop: 8 }} />
       ) : (
         <TouchableOpacity
-          style={[styles.googleBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
+          style={[styles.googleBtn, { backgroundColor: theme.accent }]}
           onPress={handlePress}
           activeOpacity={0.85}
         >
-          <Text style={[styles.googleBtnText, { color: theme.text }]}>Sign in with Google</Text>
+          <Text style={styles.googleBtnText}>Sign in with Google</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -53,17 +54,19 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  mark: { marginBottom: 24 },
-  title: { fontSize: 28, fontWeight: '800', marginBottom: 6, letterSpacing: -0.5 },
-  sub: { fontSize: 14, marginBottom: 28, textAlign: 'center' },
-  domainNote: { fontSize: 12, marginBottom: 16, textAlign: 'center' },
+  markWrap: {
+    width: 96, height: 96, borderRadius: 28, alignItems: 'center', justifyContent: 'center',
+    marginBottom: 24, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, elevation: 3,
+  },
+  title: { fontSize: 28, fontFamily: FONTS.headingBold, marginBottom: 6, letterSpacing: -0.5 },
+  sub: { fontSize: 14, fontFamily: FONTS.body, marginBottom: 28, textAlign: 'center' },
+  domainNote: { fontSize: 12, fontFamily: FONTS.body, marginBottom: 16, textAlign: 'center' },
   googleBtn: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: 14,
+    paddingVertical: 15,
     paddingHorizontal: 32,
     minWidth: 240,
     alignItems: 'center',
   },
-  googleBtnText: { fontSize: 15, fontWeight: '600' },
+  googleBtnText: { fontSize: 15, fontFamily: FONTS.bodySemi, color: '#fff' },
 });

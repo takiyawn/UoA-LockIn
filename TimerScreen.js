@@ -5,8 +5,10 @@ import * as Haptics from 'expo-haptics';
 import { useAuth } from './AuthContext';
 import { useTheme } from './ThemeContext';
 import ProgressRing from './ProgressRing';
+import { FONTS } from './fonts';
 
 const PERIODS = ['Weekly', 'Monthly', 'Yearly', 'All Time'];
+const MEDALS = ['🥇', '🥈', '🥉'];
 
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -120,7 +122,7 @@ function TimerTab() {
       <View style={{ marginBottom: 8 }}>
         <ProgressRing
           progress={(isBreak ? breakSecs : workSecs) > 0 ? secondsLeft / (isBreak ? breakSecs : workSecs) : 0}
-          color={isBreak ? '#34C759' : '#007AFF'}
+          color={isBreak ? theme.green : theme.accent}
           trackColor={theme.tag}
         />
         <View style={StyleSheet.absoluteFillObject}>
@@ -158,7 +160,7 @@ function TimerTab() {
       </View>
 
       <View style={styles.row}>
-        <TouchableOpacity style={[styles.btn, running && styles.btnStop]} onPress={handleStartStop}>
+        <TouchableOpacity style={[styles.btn, { backgroundColor: running ? theme.red : theme.accent }]} onPress={handleStartStop}>
           <Text style={styles.btnText}>{running ? 'Pause' : 'Start'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.btn, { backgroundColor: theme.tag }]} onPress={handleReset}>
@@ -220,10 +222,10 @@ function LeaderboardTab() {
         {PERIODS.map(p => (
           <TouchableOpacity
             key={p}
-            style={[styles.periodBtn, { backgroundColor: theme.tag }, period === p && styles.periodBtnActive]}
+            style={[styles.periodBtn, { backgroundColor: theme.tag }, period === p && { backgroundColor: theme.accent }]}
             onPress={() => setPeriod(p)}
           >
-            <Text style={[styles.periodText, { color: theme.tagText }, period === p && styles.periodTextActive]}>{p}</Text>
+            <Text style={[styles.periodText, { color: theme.sub }, period === p && styles.periodTextActive]}>{p}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -239,13 +241,13 @@ function LeaderboardTab() {
             const mins = row.total % 60;
             const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
             return (
-              <View key={row.user_id} style={[styles.leaderRow, { backgroundColor: theme.card }, isMe && styles.leaderRowMe]}>
-                <Text style={[styles.rank, { color: theme.text }]}>#{i + 1}</Text>
+              <View key={row.user_id} style={[styles.leaderRow, { backgroundColor: theme.card }, isMe && { borderWidth: 2, borderColor: theme.accent }]}>
+                <Text style={[styles.rank, i < 3 && styles.rankMedal, { color: theme.text }]}>{i < 3 ? MEDALS[i] : `#${i + 1}`}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.leaderName, { color: theme.text }]}>{isMe ? `${row.full_name} (You)` : row.full_name}</Text>
                   <Text style={[styles.leaderSub, { color: theme.sub }]}>{row.count} sessions</Text>
                 </View>
-                <Text style={styles.leaderTime}>{timeStr}</Text>
+                <Text style={[styles.leaderTime, { color: theme.accent }]}>{timeStr}</Text>
               </View>
             );
           })}
@@ -262,11 +264,11 @@ export default function TimerScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
       <View style={[styles.tabRow, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-        <TouchableOpacity style={[styles.tabBtn, tab === 'timer' && styles.tabBtnActive]} onPress={() => setTab('timer')}>
-          <Text style={[styles.tabText, { color: theme.sub }, tab === 'timer' && styles.tabTextActive]}>Timer</Text>
+        <TouchableOpacity style={[styles.tabBtn, tab === 'timer' && { borderBottomColor: theme.accent }]} onPress={() => setTab('timer')}>
+          <Text style={[styles.tabText, { color: theme.sub }, tab === 'timer' && { color: theme.accent, fontFamily: FONTS.bodySemi }]}>Timer</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.tabBtn, tab === 'leaderboard' && styles.tabBtnActive]} onPress={() => setTab('leaderboard')}>
-          <Text style={[styles.tabText, { color: theme.sub }, tab === 'leaderboard' && styles.tabTextActive]}>Leaderboard</Text>
+        <TouchableOpacity style={[styles.tabBtn, tab === 'leaderboard' && { borderBottomColor: theme.accent }]} onPress={() => setTab('leaderboard')}>
+          <Text style={[styles.tabText, { color: theme.sub }, tab === 'leaderboard' && { color: theme.accent, fontFamily: FONTS.bodySemi }]}>Leaderboard</Text>
         </TouchableOpacity>
       </View>
       {tab === 'timer' ? <TimerTab /> : <LeaderboardTab />}
@@ -276,30 +278,26 @@ export default function TimerScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  modeLabel: { fontSize: 14, fontWeight: '600', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 },
-  timer: { fontSize: 48, fontWeight: '700', fontVariant: ['tabular-nums'], marginBottom: 0 },
-  sub: { fontSize: 13, marginBottom: 24 },
+  modeLabel: { fontSize: 14, fontFamily: FONTS.bodySemi, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 },
+  timer: { fontSize: 48, fontFamily: FONTS.headingBold, fontVariant: ['tabular-nums'], marginBottom: 0 },
+  sub: { fontSize: 13, fontFamily: FONTS.body, marginBottom: 24 },
   row: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   inputGroup: { alignItems: 'center' },
-  inputLabel: { fontSize: 12, marginBottom: 4 },
-  input: { borderWidth: 1, borderRadius: 8, padding: 10, width: 80, textAlign: 'center', fontSize: 16 },
-  btn: { backgroundColor: '#007AFF', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 },
-  btnStop: { backgroundColor: '#FF3B30' },
-  btnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  inputLabel: { fontSize: 12, fontFamily: FONTS.body, marginBottom: 4 },
+  input: { borderWidth: 1, borderRadius: 10, padding: 10, width: 80, textAlign: 'center', fontSize: 16, fontFamily: FONTS.headingSemi },
+  btn: { paddingHorizontal: 32, paddingVertical: 14, borderRadius: 14 },
+  btnText: { color: '#fff', fontFamily: FONTS.bodySemi, fontSize: 16 },
   tabRow: { flexDirection: 'row', borderBottomWidth: 1 },
-  tabBtn: { flex: 1, paddingVertical: 14, alignItems: 'center' },
-  tabBtnActive: { borderBottomWidth: 2, borderBottomColor: '#007AFF' },
-  tabText: { fontSize: 15 },
-  tabTextActive: { color: '#007AFF', fontWeight: '600' },
+  tabBtn: { flex: 1, paddingVertical: 14, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabText: { fontSize: 15, fontFamily: FONTS.bodyMedium },
   periodRow: { flexDirection: 'row', padding: 12, gap: 8 },
   periodBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
-  periodBtnActive: { backgroundColor: '#007AFF' },
-  periodText: { fontSize: 12 },
-  periodTextActive: { color: '#fff', fontWeight: '600' },
-  leaderRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, padding: 16, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  leaderRowMe: { borderWidth: 2, borderColor: '#007AFF' },
-  rank: { fontSize: 18, fontWeight: '700', width: 36 },
-  leaderName: { fontSize: 15, fontWeight: '600' },
-  leaderSub: { fontSize: 12 },
-  leaderTime: { fontSize: 16, fontWeight: '700', color: '#007AFF' },
+  periodText: { fontSize: 12, fontFamily: FONTS.bodyMedium },
+  periodTextActive: { color: '#fff', fontFamily: FONTS.bodySemi },
+  leaderRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 16, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  rank: { fontSize: 16, fontFamily: FONTS.headingSemi, width: 36 },
+  rankMedal: { fontSize: 22 },
+  leaderName: { fontSize: 15, fontFamily: FONTS.bodySemi },
+  leaderSub: { fontSize: 12, fontFamily: FONTS.body },
+  leaderTime: { fontSize: 16, fontFamily: FONTS.headingSemi },
 });

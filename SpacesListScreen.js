@@ -1,15 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, TextInput } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from './supabase';
 import { useTheme } from './ThemeContext';
 import Skeleton from './Skeleton';
+import { FONTS } from './fonts';
 
 const NOISE_LEVELS = ['Any', 'Silent', 'Quiet', 'Moderate', 'Loud'];
-const BUILDINGS = ['Any', 'City Campus', 'Engineering', 'Grafton Campus', 'Owen G Glenn', 'Science Campus'];
 
-function SpaceCard({ space, onPress, isFav, onToggleFav }) {
-  const { theme } = useTheme();
+function SpaceCard({ space, onPress, isFav, onToggleFav, theme }) {
   return (
     <TouchableOpacity style={[styles.card, { backgroundColor: theme.card }]} onPress={onPress}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -19,15 +18,15 @@ function SpaceCard({ space, onPress, isFav, onToggleFav }) {
         </TouchableOpacity>
       </View>
       <Text style={[styles.cardSub, { color: theme.sub }]}>{space.building}</Text>
-          {space.avgRating && (
-      <Text style={{ color: '#FFD700', fontSize: 13, marginBottom: 6 }}>
-        ⭐ {space.avgRating}
-      </Text>
-    )}
+      {space.avgRating && (
+        <Text style={{ color: theme.amber, fontSize: 13, fontWeight: '600', marginBottom: 6 }}>
+          ★ {space.avgRating}
+        </Text>
+      )}
 
       {space.occupancy && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: space.occupancy === 'busy' ? '#FF3B30' : '#34C759' }} />
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: space.occupancy === 'busy' ? theme.red : theme.green }} />
           <Text style={{ color: theme.sub, fontSize: 12 }}>{space.occupancy === 'busy' ? 'Busy' : 'Quiet'} right now</Text>
         </View>
       )}
@@ -41,42 +40,24 @@ function SpaceCard({ space, onPress, isFav, onToggleFav }) {
   );
 }
 
-function Dropdown({ label, value, options, onChange, theme }) {
-  const [open, setOpen] = useState(false);
-  const isActive = value !== 'Any';
-
+function NoiseChips({ value, onChange, theme }) {
   return (
-    <>
-      <TouchableOpacity
-        style={[styles.dropdown, { backgroundColor: theme.card, borderColor: isActive ? '#007AFF' : theme.border }]}
-        onPress={() => setOpen(true)}
-      >
-        <Text style={[styles.dropdownText, { color: isActive ? '#007AFF' : theme.text }]} numberOfLines={1}>
-          {value === 'Any' ? label : value}
-        </Text>
-        <Text style={{ color: isActive ? '#007AFF' : theme.sub, fontSize: 10 }}>▼</Text>
-      </TouchableOpacity>
-
-      <Modal visible={open} transparent animationType="fade">
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setOpen(false)}>
-          <View style={[styles.dropdownMenu, { backgroundColor: theme.card }]}>
-            <Text style={[styles.dropdownMenuTitle, { color: theme.sub }]}>{label}</Text>
-            {options.map(opt => (
-              <TouchableOpacity
-                key={opt}
-                style={[styles.dropdownOption, { borderBottomColor: theme.border }]}
-                onPress={() => { onChange(opt === value ? 'Any' : opt); setOpen(false); }}
-              >
-                <Text style={[styles.dropdownOptionText, { color: theme.text }]}>
-                  {opt === 'Any' ? `All ${label}s` : opt}
-                </Text>
-                {value === opt && <Text style={{ color: '#007AFF' }}>✓</Text>}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </>
+    <View style={styles.chipRow}>
+      {NOISE_LEVELS.map(n => {
+        const active = n === value;
+        return (
+          <TouchableOpacity
+            key={n}
+            onPress={() => onChange(n)}
+            style={[styles.chip, { backgroundColor: active ? theme.accent : theme.tag }]}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '600', color: active ? '#fff' : theme.text }}>
+              {n === 'Any' ? 'All' : n}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
   );
 }
 
@@ -86,54 +67,53 @@ export default function SpacesListScreen({ navigation, getFavourites, toggleFavo
   const [loading, setLoading] = useState(true);
   const [favourites, setFavourites] = useState([]);
   const [noise, setNoise] = useState('Any');
-  const [building, setBuilding] = useState('Any');
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
 
   async function load() {
-  const { data, error } = await supabase.from('spaces').select('*');
-  if (error) console.error(error);
+    const { data, error } = await supabase.from('spaces').select('*');
+    if (error) console.error(error);
 
-  const { data: ratings } = await supabase.rpc('get_space_ratings');
+    const { data: ratings } = await supabase.rpc('get_space_ratings');
 
-  const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-  const { data: occupancyData } = await supabase
-    .from('occupancy')
-    .select('space_id, status')
-    .gte('created_at', cutoff);
+    const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { data: occupancyData } = await supabase
+      .from('occupancy')
+      .select('space_id, status')
+      .gte('created_at', cutoff);
 
-  const occMap = {};
-  for (const r of occupancyData || []) {
-    if (!occMap[r.space_id]) occMap[r.space_id] = { busy: 0, quiet: 0 };
-    occMap[r.space_id][r.status]++;
+    const occMap = {};
+    for (const r of occupancyData || []) {
+      if (!occMap[r.space_id]) occMap[r.space_id] = { busy: 0, quiet: 0 };
+      occMap[r.space_id][r.status]++;
+    }
+
+    const avgMap = {};
+    for (const r of ratings || []) {
+      avgMap[r.space_id] = { total: r.avg_rating, count: r.review_count };
+    }
+
+    const spacesWithRatings = (data || []).map(s => ({
+      ...s,
+      avgRating: avgMap[s.id] ? avgMap[s.id].total : null,
+      occupancy: occMap[s.id]
+        ? (occMap[s.id].busy / (occMap[s.id].busy + occMap[s.id].quiet) > 0.5 ? 'busy' : 'quiet')
+        : null,
+    }));
+
+    setSpaces(spacesWithRatings);
+    const favs = await getFavourites();
+    setFavourites(favs.map((f) => f.id));
+    setLoading(false);
   }
 
-  const avgMap = {};
-  for (const r of ratings || []) {
-    avgMap[r.space_id] = { total: r.avg_rating, count: r.review_count };
-  }
-
-  const spacesWithRatings = (data || []).map(s => ({
-    ...s,
-    avgRating: avgMap[s.id] ? avgMap[s.id].total : null,
-    occupancy: occMap[s.id]
-      ? (occMap[s.id].busy / (occMap[s.id].busy + occMap[s.id].quiet) > 0.5 ? 'busy' : 'quiet')
-      : null,
-  }));
-
-  setSpaces(spacesWithRatings);
-  const favs = await getFavourites();
-  setFavourites(favs.map((f) => f.id));
-  setLoading(false);
-}
-
-useFocusEffect(
-  useCallback(() => {
-    load();
-    const interval = setInterval(load, 30000);
-    return () => clearInterval(interval);
-  }, [])
-);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+      const interval = setInterval(load, 30000);
+      return () => clearInterval(interval);
+    }, [])
+  );
 
   async function handleToggleFav(space) {
     const isNowFav = await toggleFavourite(space);
@@ -150,7 +130,6 @@ useFocusEffect(
 
   const filtered = spaces.filter(s => {
     if (noise !== 'Any' && s.noise !== noise) return false;
-    if (building !== 'Any' && s.building !== building) return false;
     if (search.trim() && !s.name.toLowerCase().includes(search.trim().toLowerCase())) return false;
     return true;
   });
@@ -176,19 +155,8 @@ useFocusEffect(
           onChangeText={setSearch}
         />
       </View>
-      <View style={[styles.filterBar, { borderBottomColor: theme.border }]}>
-        <Dropdown label="Noise Level" value={noise} options={NOISE_LEVELS} onChange={setNoise} theme={theme} />
-        <Dropdown label="Building" value={building} options={BUILDINGS} onChange={setBuilding} theme={theme} />
-        {(noise !== 'Any' || building !== 'Any') && (
-          <TouchableOpacity
-            onPress={() => { setNoise('Any'); setBuilding('Any'); }}
-            style={[styles.clearBadge, { backgroundColor: theme.tag }]}
-          >
-            <Text style={{ color: '#007AFF', fontSize: 12, fontWeight: '600' }}>
-              {[noise !== 'Any', building !== 'Any'].filter(Boolean).length} ✕
-            </Text>
-          </TouchableOpacity>
-        )}
+      <View style={{ paddingLeft: 16, paddingTop: 12, paddingBottom: 4 }}>
+        <NoiseChips value={noise} onChange={setNoise} theme={theme} />
       </View>
 
       <FlatList
@@ -197,6 +165,7 @@ useFocusEffect(
         renderItem={({ item }) => (
           <SpaceCard
             space={item}
+            theme={theme}
             onPress={() => navigation.navigate('SpaceDetail', { space: item })}
             isFav={favourites.includes(item.id)}
             onToggleFav={() => handleToggleFav(item)}
@@ -213,21 +182,13 @@ useFocusEffect(
 
 const styles = StyleSheet.create({
   list: { padding: 16 },
-  card: { borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
-  cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  cardSub: { fontSize: 13, marginBottom: 8 },
+  card: { borderRadius: 16, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 },
+  cardTitle: { fontSize: 16, fontFamily: FONTS.headingSemi, marginBottom: 4 },
+  cardSub: { fontSize: 13, fontFamily: FONTS.body, marginBottom: 8 },
   tags: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, fontSize: 12 },
-  filterBar: { flexDirection: 'row', gap: 10, padding: 12, borderBottomWidth: 1 },
-  searchInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14 },
-  clearBadge: { paddingHorizontal: 12, justifyContent: 'center', borderRadius: 10 },
-  dropdown: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
-  dropdownText: { fontSize: 13, fontWeight: '500', flex: 1, marginRight: 4 },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 },
-  dropdownMenu: { borderRadius: 14, overflow: 'hidden' },
-  dropdownMenuTitle: { fontSize: 12, fontWeight: '600', letterSpacing: 1, padding: 16, paddingBottom: 8 },
-  dropdownOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1 },
-  dropdownOptionText: { fontSize: 16 },
-  emptyText: { textAlign: 'center', marginTop: 40, fontSize: 14 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, fontSize: 12, fontFamily: FONTS.bodyMedium },
+  chipRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  searchInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, fontFamily: FONTS.body },
+  emptyText: { textAlign: 'center', marginTop: 40, fontSize: 14, fontFamily: FONTS.body },
 });

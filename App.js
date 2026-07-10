@@ -1,11 +1,15 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { NavigationContainer, DefaultTheme, DarkTheme, useFocusEffect } from '@react-navigation/native';
+import { useEffect, useState, useCallback } from 'react';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Text, Alert, View, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Button, ScrollView, Linking } from 'react-native';
+import { Text, View, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Button, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SplashScreen from 'expo-splash-screen';
+import { useFonts } from 'expo-font';
+import { SpaceGrotesk_500Medium, SpaceGrotesk_600SemiBold, SpaceGrotesk_700Bold } from '@expo-google-fonts/space-grotesk';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { supabase } from './supabase';
 import * as Haptics from 'expo-haptics';
 import { AuthProvider, useAuth } from './AuthContext';
@@ -17,19 +21,14 @@ import SpacesListScreen from './SpacesListScreen';
 import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from './HomeScreen';
 import * as Sentry from '@sentry/react-native';
+import { FONTS } from './fonts';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 Sentry.init({
   dsn: 'https://5f53b3cb7822b0eb990e90bfd3389df7@o4511702163062784.ingest.us.sentry.io/4511702163259392',
-
-  // Adds more context data to events (IP address, cookies, user, etc.)
-  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
   sendDefaultPii: true,
-
-  // Enable Logs
   enableLogs: false,
-
-  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
-  // spotlight: __DEV__,
 });
 
 const Tab = createBottomTabNavigator();
@@ -49,29 +48,6 @@ export async function toggleFavourite(space) {
   return !exists;
 }
 
-function SpaceCard({ space, onPress, isFav, onToggleFav }) {
-  const { theme } = useTheme();
-  return (
-    <TouchableOpacity style={[styles.card, { backgroundColor: theme.card }]} onPress={onPress}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        <Text style={[styles.cardTitle, { color: theme.text, flex: 1 }]}>{space.name}</Text>
-        <TouchableOpacity onPress={onToggleFav}>
-          <Text style={{ fontSize: 20 }}>{isFav ? '❤️' : '🤍'}</Text>
-        </TouchableOpacity>
-      </View>
-      <Text style={[styles.cardSub, { color: theme.sub }]}>{space.building}</Text>
-      {space.avgRating && (
-        <Text style={{ color: '#FFD700', fontSize: 13, marginBottom: 6 }}>⭐ {space.avgRating}</Text>
-      )}
-      <View style={styles.tags}>
-        <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>{space.noise}</Text>
-        {space.wifi && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>WiFi</Text>}
-        {space.power && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>Power</Text>}
-      </View>
-    </TouchableOpacity>
-  );
-}
-
 function SpaceDetailScreen({ route, navigation }) {
   const { theme } = useTheme();
   const { space } = route.params;
@@ -81,31 +57,12 @@ function SpaceDetailScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isFav, setIsFav] = useState(false);
-  const [buddyRequests, setBuddyRequests] = useState([]);
-  const [courseCode, setCourseCode] = useState('');
-  const [postingBuddy, setPostingBuddy] = useState(false);
-  const [myBuddyRequest, setMyBuddyRequest] = useState(null);
 
   useEffect(() => {
     fetchReviews();
     fetchOccupancy();
-    fetchBuddyRequests();
     getFavourites().then((favs) => setIsFav(!!favs.find((f) => f.id === space.id)));
   }, []);
-
-  async function fetchBuddyRequests() {
-    const { data, error } = await supabase
-      .from('buddy_requests')
-      .select('*, profiles(full_name)')
-      .eq('space_id', space.id)
-      .order('created_at', { ascending: false });
-    setBuddyRequests(data || []);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      setMyBuddyRequest((data || []).find(r => r.user_id === user.id) || null);
-    }
-  }
 
   async function fetchReviews() {
     const { data, error } = await supabase
@@ -119,37 +76,11 @@ function SpaceDetailScreen({ route, navigation }) {
     setLoading(false);
   }
 
-  async function postBuddyRequest() {
-    if (!courseCode.trim()) return;
-    setPostingBuddy(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setPostingBuddy(false); return; }
-
-    const { error } = await supabase.from('buddy_requests').upsert({
-      space_id: space.id,
-      user_id: user.id,
-      course_code: courseCode.trim().toUpperCase(),
-    }, { onConflict: 'user_id,space_id' });
-
-    if (!error) {
-      setCourseCode('');
-      fetchBuddyRequests();
-    }
-    setPostingBuddy(false);
-  }
-
-  async function cancelBuddyRequest() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase.from('buddy_requests').delete().eq('user_id', user.id).eq('space_id', space.id);
-    fetchBuddyRequests();
-  }
-
   const [occupancy, setOccupancy] = useState(null);
   const [reporting, setReporting] = useState(false);
 
   async function fetchOccupancy() {
-    const cutoff = new Date(Date.now() - 24 * 60 * 1000).toISOString();
+    const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     const { data } = await supabase
       .from('occupancy')
       .select('status')
@@ -213,7 +144,7 @@ function SpaceDetailScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
       <Text style={[styles.cardSub, { color: theme.sub }]}>{space.building}</Text>
-            <View style={styles.tags}>
+      <View style={styles.tags}>
         <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>{space.noise}</Text>
         {space.wifi && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>WiFi</Text>}
         {space.power && <Text style={[styles.tag, { backgroundColor: theme.tag, color: theme.tagText }]}>Power</Text>}
@@ -221,62 +152,30 @@ function SpaceDetailScreen({ route, navigation }) {
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 }}>
-  {occupancy && (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: occupancy === 'busy' ? '#FF3B30' : '#34C759' }} />
-      <Text style={{ color: theme.sub, fontSize: 13 }}>{occupancy === 'busy' ? 'Usually busy' : 'Usually quiet'} right now</Text>
-    </View>
-  )}
-</View>
+        {occupancy && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: occupancy === 'busy' ? theme.red : theme.green }} />
+            <Text style={{ color: theme.sub, fontSize: 13 }}>{occupancy === 'busy' ? 'Usually busy' : 'Usually quiet'} right now</Text>
+          </View>
+        )}
+      </View>
 
       <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
         <TouchableOpacity
-          style={{ flex: 1, padding: 12, borderRadius: 10, backgroundColor: '#FF3B30', alignItems: 'center' }}
+          style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: theme.redSoft, alignItems: 'center' }}
           onPress={() => reportOccupancy('busy')}
           disabled={reporting}
         >
-          <Text style={{ color: '#fff', fontWeight: '600' }}>🔴 It's busy</Text>
+          <Text style={{ color: theme.red, fontWeight: '600' }}>🔴 It's busy</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={{ flex: 1, padding: 12, borderRadius: 10, backgroundColor: '#34C759', alignItems: 'center' }}
+          style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: theme.greenSoft, alignItems: 'center' }}
           onPress={() => reportOccupancy('quiet')}
           disabled={reporting}
         >
-          <Text style={{ color: '#fff', fontWeight: '600' }}>🟢 It's quiet</Text>
+          <Text style={{ color: theme.green, fontWeight: '600' }}>🟢 It's quiet</Text>
         </TouchableOpacity>
       </View>
-
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Study Buddies</Text>
-
-      {buddyRequests.length === 0 ? (
-        <Text style={[styles.cardSub, { color: theme.sub }]}>No one's looking for a study buddy here right now.</Text>
-      ) : (
-        buddyRequests.map(r => (
-          <View key={r.id} style={{ backgroundColor: theme.card, borderRadius: 10, padding: 12, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ color: theme.text, fontWeight: '600' }}>{r.profiles?.full_name || 'Someone'}</Text>
-            <Text style={{ color: theme.sub }}>{r.course_code}</Text>
-          </View>
-        ))
-      )}
-
-      {myBuddyRequest ? (
-        <TouchableOpacity style={{ backgroundColor: theme.tag, borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 8 }} onPress={cancelBuddyRequest}>
-          <Text style={{ color: theme.text, fontWeight: '600' }}>Cancel my buddy request</Text>
-        </TouchableOpacity>
-      ) : (
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-          <TextInput
-            style={[styles.input, { flex: 1, backgroundColor: theme.input, borderColor: theme.border, color: theme.text }]}
-            placeholder="Course code (e.g. COMPSCI 120)"
-            placeholderTextColor={theme.sub}
-            value={courseCode}
-            onChangeText={setCourseCode}
-          />
-          <TouchableOpacity style={{ backgroundColor: '#007AFF', borderRadius: 10, paddingHorizontal: 16, justifyContent: 'center' }} onPress={postBuddyRequest} disabled={postingBuddy}>
-            <Text style={{ color: '#fff', fontWeight: '600' }}>{postingBuddy ? '...' : 'Post'}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Leave a Review</Text>
       <TextInput
@@ -290,14 +189,20 @@ function SpaceDetailScreen({ route, navigation }) {
       <View style={{ flexDirection: 'row', marginBottom: 12 }}>
         {[1, 2, 3, 4, 5].map(star => (
           <TouchableOpacity key={star} onPress={() => setRating(String(star))}>
-            <Text style={{ fontSize: 32, color: star <= parseInt(rating) ? '#FFD700' : theme.border }}>★</Text>
+            <Text style={{ fontSize: 32, color: star <= parseInt(rating) ? theme.amber : theme.border }}>★</Text>
           </TouchableOpacity>
         ))}
       </View>
-      <Button title={submitting ? 'Submitting...' : 'Submit Review'} onPress={submitReview} disabled={submitting} />
+      <TouchableOpacity
+        style={{ backgroundColor: theme.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', opacity: submitting ? 0.6 : 1 }}
+        onPress={submitReview}
+        disabled={submitting}
+      >
+        <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>{submitting ? 'Submitting...' : 'Submit Review'}</Text>
+      </TouchableOpacity>
 
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Reviews</Text>
-      {loading ? <ActivityIndicator /> : reviews.length === 0 ? (
+      {loading ? <ActivityIndicator color={theme.accent} /> : reviews.length === 0 ? (
         <Text style={[styles.cardSub, { color: theme.sub }]}>No reviews yet. Be the first!</Text>
       ) : (
         reviews.map((r) => (
@@ -305,7 +210,7 @@ function SpaceDetailScreen({ route, navigation }) {
             <Text style={{ fontSize: 13, fontWeight: '600', color: theme.text, marginBottom: 4 }}>
               {r.profiles?.full_name || 'Unknown'}
             </Text>
-            <Text style={styles.reviewRating}>{'⭐'.repeat(r.rating)}</Text>
+            <Text style={[styles.reviewRating, { color: theme.amber }]}>{'★'.repeat(r.rating)}</Text>
             <Text style={[styles.reviewComment, { color: theme.text }]}>{r.comment}</Text>
             <Text style={[styles.reviewDate, { color: theme.sub }]}>{new Date(r.created_at).toLocaleDateString()}</Text>
           </View>
@@ -353,15 +258,20 @@ function MainApp() {
   const { session, loading } = useAuth();
   const { theme } = useTheme();
 
-  if (loading) return <View style={[styles.center, { backgroundColor: theme.bg }]}><ActivityIndicator /></View>;
+  if (loading) return <View style={[styles.center, { backgroundColor: theme.bg }]}><ActivityIndicator color={theme.accent} /></View>;
   if (!session) return <LoginScreen />;
 
+  const navTheme = {
+    ...(theme.dark ? DarkTheme : DefaultTheme),
+    colors: { ...(theme.dark ? DarkTheme.colors : DefaultTheme.colors), primary: theme.accent, background: theme.bg, card: theme.card, border: theme.border, text: theme.text },
+  };
+
   return (
-    <NavigationContainer theme={theme.dark ? DarkTheme : DefaultTheme}>
+    <NavigationContainer theme={navTheme}>
       <Tab.Navigator
         screenOptions={({ route }) => ({
-          tabBarStyle: { backgroundColor: theme.tabBar },
-          tabBarActiveTintColor: '#007AFF',
+          tabBarStyle: { backgroundColor: theme.tabBar, borderTopColor: theme.border },
+          tabBarActiveTintColor: theme.accent,
           tabBarInactiveTintColor: theme.sub,
           tabBarIcon: ({ focused, color, size }) => {
             const icons = {
@@ -374,23 +284,41 @@ function MainApp() {
           },
         })}
       >
-        <Tab.Screen name="Map" component={MapScreen} options={{headerShown: false}} />
+        <Tab.Screen name="Map" component={MapScreen} options={{ headerShown: false }} />
         <Tab.Screen name="Spaces" component={SpacesScreen} options={{ headerShown: false }} />
-        <Tab.Screen name="Home" options={{headerShown: false}}>
+        <Tab.Screen name="Home" options={{ headerShown: false }}>
           {(props) => <HomeScreen {...props} />}
         </Tab.Screen>
-        <Tab.Screen name="Timer" component={TimerScreen} options={{headerShown: true}} />
+        <Tab.Screen name="Timer" component={TimerScreen} options={{ headerShown: true }} />
       </Tab.Navigator>
     </NavigationContainer>
   );
 }
 
 export default Sentry.wrap(function App() {
+  const [fontsLoaded] = useFonts({
+    SpaceGrotesk_500Medium,
+    SpaceGrotesk_600SemiBold,
+    SpaceGrotesk_700Bold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
+
+  const onLayout = useCallback(() => {
+    if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) return null;
+
   return (
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <MainApp />
+          <View style={{ flex: 1 }} onLayout={onLayout}>
+            <MainApp />
+          </View>
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
@@ -398,17 +326,14 @@ export default Sentry.wrap(function App() {
 });
 
 const styles = StyleSheet.create({
-  list: { padding: 16 },
   detail: { padding: 16 },
-  card: { borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
-  reviewCard: { borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
-  cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  detailTitle: { fontSize: 22, fontWeight: '700', marginBottom: 4 },
+  reviewCard: { borderRadius: 14, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  detailTitle: { fontSize: 22, fontFamily: FONTS.headingBold, marginBottom: 4 },
   cardSub: { fontSize: 13, marginBottom: 8 },
   tags: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 8 },
   tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, fontSize: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: '600', marginTop: 24, marginBottom: 12 },
-  input: { borderWidth: 1, borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 14 },
+  sectionTitle: { fontSize: 18, fontFamily: FONTS.bodySemi, marginTop: 24, marginBottom: 12 },
+  input: { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 14 },
   reviewRating: { fontSize: 16, marginBottom: 4 },
   reviewComment: { fontSize: 14, marginBottom: 4 },
   reviewDate: { fontSize: 12 },
