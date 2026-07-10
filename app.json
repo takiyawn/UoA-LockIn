@@ -17,6 +17,9 @@
       "bundleIdentifier": "com.takiyawn.uoastudyspaces",
       "config": {
         "googleMapsApiKey": "AIzaSyBYCuPovdBX6c8F96k8XZ5p5Iw4B5CBh5g"
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -46,6 +49,11 @@
         }
       ],
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "03f434e4-6c32-4f60-b254-41e0313a2390"
+      }
+    }
   }
 }
